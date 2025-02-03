@@ -191,7 +191,7 @@ MonoBehaviour:
   opacity: 1
   angle: 0
   scale: {x: 1, y: 1, z: 1}
-  radius: 0.3
+  radius: 0.2
   tileTexture: {fileID: 0}
   tileTransform: {fileID: 0}
   tileOpacity: 1
@@ -349,6 +349,7 @@ MonoBehaviour:
   PinkColor: {r: 0.9568628, g: 0, b: 1, a: 1}
   PaintDecal2D: {fileID: 1472829222}
   MeshDrawer_MatClone: {fileID: 340924019}
+  SegmentedLineDrawer: {fileID: 283563008}
 --- !u!4 &5819776
 Transform:
   m_ObjectHideFlags: 0
@@ -433,7 +434,7 @@ MonoBehaviour:
   opacity: 1
   angle: 0
   scale: {x: 1, y: 1, z: 1}
-  radius: 0.3
+  radius: 0.2
   tileTexture: {fileID: 0}
   tileTransform: {fileID: 0}
   tileOpacity: 1
@@ -816,6 +817,78 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
+--- !u!1001 &239647098
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 4955990381090259996, guid: 37f3869d8571cc54e9ec1cc7832b3257, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4955990381090259996, guid: 37f3869d8571cc54e9ec1cc7832b3257, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4955990381090259996, guid: 37f3869d8571cc54e9ec1cc7832b3257, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4955990381090259996, guid: 37f3869d8571cc54e9ec1cc7832b3257, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4955990381090259996, guid: 37f3869d8571cc54e9ec1cc7832b3257, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4955990381090259996, guid: 37f3869d8571cc54e9ec1cc7832b3257, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4955990381090259996, guid: 37f3869d8571cc54e9ec1cc7832b3257, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4955990381090259996, guid: 37f3869d8571cc54e9ec1cc7832b3257, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4955990381090259996, guid: 37f3869d8571cc54e9ec1cc7832b3257, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4955990381090259996, guid: 37f3869d8571cc54e9ec1cc7832b3257, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8629098666243519521, guid: 37f3869d8571cc54e9ec1cc7832b3257, type: 3}
+      propertyPath: m_Name
+      value: Drawing
+      objectReference: {fileID: 0}
+    - target: {fileID: 8629098666243519521, guid: 37f3869d8571cc54e9ec1cc7832b3257, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 37f3869d8571cc54e9ec1cc7832b3257, type: 3}
+--- !u!114 &283563008 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 3291468235647734147, guid: 37f3869d8571cc54e9ec1cc7832b3257, type: 3}
+  m_PrefabInstance: {fileID: 239647098}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 124146467ceb71942a2d11b9cc1cd67f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &314930582
 GameObject:
   m_ObjectHideFlags: 0
@@ -885,7 +958,7 @@ MonoBehaviour:
   opacity: 1
   angle: 0
   scale: {x: 1, y: 1, z: 1}
-  radius: 0.3
+  radius: 0.2
   tileTexture: {fileID: 0}
   tileTransform: {fileID: 0}
   tileOpacity: 1
@@ -1120,7 +1193,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &340924019
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2262,7 +2335,7 @@ MonoBehaviour:
   opacity: 1
   angle: 0
   scale: {x: 1, y: 1, z: 1}
-  radius: 0.3
+  radius: 0.2
   tileTexture: {fileID: 0}
   tileTransform: {fileID: 0}
   tileOpacity: 1
@@ -2550,7 +2623,7 @@ MonoBehaviour:
   opacity: 1
   angle: 0
   scale: {x: 1, y: 1, z: 1}
-  radius: 0.3
+  radius: 0.2
   tileTexture: {fileID: 0}
   tileTransform: {fileID: 0}
   tileOpacity: 1
@@ -2795,7 +2868,7 @@ MonoBehaviour:
   opacity: 1
   angle: 0
   scale: {x: 1, y: 1, z: 1}
-  radius: 0.3
+  radius: 0.2
   tileTexture: {fileID: 0}
   tileTransform: {fileID: 0}
   tileOpacity: 1
@@ -3864,8 +3937,9 @@ SceneRoots:
   - {fileID: 1538547076}
   - {fileID: 1410359067}
   - {fileID: 5819776}
-  - {fileID: 1605393250}
   - {fileID: 366011877}
+  - {fileID: 1605393250}
   - {fileID: 1589197233}
   - {fileID: 724257848}
   - {fileID: 340924021}
+  - {fileID: 239647098}

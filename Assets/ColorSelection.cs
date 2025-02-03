@@ -17,6 +17,7 @@ public class ColorSelection : MonoBehaviour
 
     public CwPaintDecal2D PaintDecal2D;
     public MeshDrawer_MatClone MeshDrawer_MatClone;
+    public SegmentedLineDrawer SegmentedLineDrawer;
     
     private void Start()
     {
@@ -80,6 +81,7 @@ public class ColorSelection : MonoBehaviour
         MeshDrawer_MatClone.SetColor(originalColor);
         MeshDrawer_MatClone.ColorType = ColorType;
         SelectColor(ColorType);
+        SegmentedLineDrawer.SetMainColor(originalColor);
     }
 
     public void SelectColor(ColorType colorType)
