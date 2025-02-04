@@ -45,3 +45,9 @@ TagManager:
   - name: Default
     uniqueID: 0
     locked: 0
+  - name: PaintLayer
+    uniqueID: 214383449
+    locked: 0
+  - name: ShadowLayer
+    uniqueID: 2615978995
+    locked: 0

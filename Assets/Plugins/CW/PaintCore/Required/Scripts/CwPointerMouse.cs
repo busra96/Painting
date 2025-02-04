@@ -20,6 +20,9 @@ namespace PaintCore
 
 		private readonly int PAINT_FINGER_INDEX = 1;
 
+
+		public Vector2 offset;
+
 		[System.NonSerialized]
 		private bool oldHeld;
 
@@ -51,7 +54,7 @@ namespace PaintCore
 			return false;
 		}
 
-#if UNITY_EDITOR
+/*#if UNITY_EDITOR
 		protected virtual void Reset()
 		{
 			if (keys == null)
@@ -65,7 +68,7 @@ namespace PaintCore
 
 			keys.Add(KeyCode.Mouse0);
 		}
-#endif
+#endif*/
 
 		protected virtual void Update()
 		{
@@ -83,14 +86,14 @@ namespace PaintCore
 
 				if (enablePreview == true)
 				{
-					GetFinger(PREVIEW_FINGER_INDEX, CwInput.GetMousePosition(), 1.0f, true, out finger);
+					GetFinger(PREVIEW_FINGER_INDEX, CwInput.GetMousePosition() + offset , 1.0f, true, out finger);
 
 					cachedHitPointers.HandleFingerUpdate(finger, false, false);
 				}
 
 				if (enablePaint == true)
 				{
-					var down = GetFinger(PAINT_FINGER_INDEX, CwInput.GetMousePosition(), 1.0f, true, out finger);
+					var down = GetFinger(PAINT_FINGER_INDEX, CwInput.GetMousePosition()  + offset, 1.0f, true, out finger);
 
 					cachedHitPointers.HandleFingerUpdate(finger, down, newHeld == false);
 				}
@@ -111,7 +114,7 @@ namespace PaintCore
 	}
 }
 
-#if UNITY_EDITOR
+/*#if UNITY_EDITOR
 namespace PaintCore
 {
 	using UnityEditor;
@@ -130,4 +133,4 @@ namespace PaintCore
 		}
 	}
 }
-#endif
+#endif*/
