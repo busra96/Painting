@@ -16,7 +16,6 @@ public class ColorSelection : MonoBehaviour
     
     public Color RedColor, YellowColor, GreenColor, BlueColor, OrangeColor, WhiteColor, PinkColor;
 
-    public CwPaintDecal2D PaintDecal2D;
     public MeshDrawer_MatClone MeshDrawer_MatClone;
     public SegmentedLineDrawer SegmentedLineDrawer;
 
@@ -25,7 +24,7 @@ public class ColorSelection : MonoBehaviour
     
     private void Start()
     {
-        originalColor = PaintDecal2D.Color;
+        originalColor = RedColor;
         RedButton.onClick?.AddListener(RedButton_OnClick);
         YellowButton.onClick?.AddListener(YellowButton_OnClick);
         GreenButton.onClick?.AddListener(GreenButton_OnClick);
