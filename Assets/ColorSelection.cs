@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using PaintIn2D;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -12,14 +11,9 @@ public class ColorSelection : MonoBehaviour
     private Color originalColor;
     
     public Button RedButton, YellowButton, GreenButton, PinkButton, BlueButton, OrangeButton, WhiteButton;
-    public Button EraserButton;
     
     public Color RedColor, YellowColor, GreenColor, BlueColor, OrangeColor, WhiteColor, PinkColor;
 
-    public MeshDrawer_MatClone MeshDrawer_MatClone;
-    public SegmentedLineDrawer SegmentedLineDrawer;
-
-    public GameObject EraserObj;
     public GameObject ShadowObj;
     
     private void Start()
@@ -32,7 +26,6 @@ public class ColorSelection : MonoBehaviour
         BlueButton.onClick?.AddListener(BlueButton_OnClick);
         OrangeButton.onClick?.AddListener(OrangeButton_OnClick);
         WhiteButton.onClick?.AddListener(WhiteButton_OnClick);
-        EraserButton?.onClick.AddListener(SelectEaser);
     }
 
     public Color GetOriginalColor() => originalColor;
@@ -81,16 +74,11 @@ public class ColorSelection : MonoBehaviour
     }
     public void SetColor()
     {
-       // PaintDecal2D.Color = originalColor;
-        MeshDrawer_MatClone.SetColor(originalColor);
-        MeshDrawer_MatClone.ColorType = ColorType;
         SelectColor(ColorType);
-        SegmentedLineDrawer.SetMainColor(originalColor);
     }
 
     public void SelectColor(ColorType colorType)
     {
-        EraserObj.SetActive(false);
         ShadowObj.SetActive(true);
         foreach (ColorPaintDecalClass colorPaintDecalClass in ColorPaintDecalClassList)
         {
@@ -109,10 +97,7 @@ public class ColorSelection : MonoBehaviour
     {
         ShadowObj.SetActive(false);
         foreach (ColorPaintDecalClass colorPaintDecalClass in ColorPaintDecalClassList)
-        {
             colorPaintDecalClass.PaintDecal.SetActive(false);
-        }
-        EraserObj.SetActive(true);
     }
 
     public void PaintDecalsAreDeactive()

@@ -8,7 +8,6 @@ public class UIManager : MonoBehaviour
     public GameObject Spatula;
     public GameObject ShadowDecalObj;
     public Test_RaycastSpawn_CameraPerspective RaycastAndSpawn;
-    public MeshDrawer_MatClone MeshDrawerMatClone;
 
     public ColorSelection ColorSelection;
 
@@ -24,7 +23,6 @@ public class UIManager : MonoBehaviour
         Spatula.SetActive(true);
         ShadowDecalObj.SetActive(false);
         RaycastAndSpawn.gameObject.SetActive(false);
-        MeshDrawerMatClone.gameObject.SetActive(false);
         ColorSelection.PaintDecalsAreDeactive();
     }
 }
