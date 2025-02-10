@@ -24,5 +24,7 @@ public class UIManager : MonoBehaviour
         ShadowDecalObj.SetActive(false);
         RaycastAndSpawn.gameObject.SetActive(false);
         ColorSelection.PaintDecalsAreDeactive();
+        ColorSelection.ColorsDeactive();
+        DoneButton.gameObject.SetActive(false);
     }
 }

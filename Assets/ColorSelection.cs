@@ -100,6 +100,16 @@ public class ColorSelection : MonoBehaviour
             colorPaintDecalClass.PaintDecal.SetActive(false);
     }
 
+    public void ColorsDeactive()
+    {
+        RedButton.gameObject.SetActive(false);
+        YellowButton.gameObject.SetActive(false);
+        GreenButton.gameObject.SetActive(false);
+        PinkButton.gameObject.SetActive(false);
+        BlueButton.gameObject.SetActive(false);
+        OrangeButton.gameObject.SetActive(false);
+    }
+
     public void PaintDecalsAreDeactive()
     {
         foreach (ColorPaintDecalClass colorPaintDecalClass in ColorPaintDecalClassList)
