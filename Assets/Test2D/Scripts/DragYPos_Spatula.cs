@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 
 public class DragYPos_Spatula : MonoBehaviour
@@ -13,6 +12,8 @@ public class DragYPos_Spatula : MonoBehaviour
     private float lastMouseY;
 
     private bool IsStop;
+    
+    public GridDataComparer gridDataComparer;
 
     void Update()
     {
@@ -43,6 +44,13 @@ public class DragYPos_Spatula : MonoBehaviour
         {
             DragObject();
         }
+
+        if (Spatula.transform.position.y <= -6)
+        {
+            gridDataComparer.Test();
+            selectedObject.gameObject.SetActive(false);
+        }
+        
     }
 
     void DragObject()

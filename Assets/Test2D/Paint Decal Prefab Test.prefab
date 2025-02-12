@@ -17,6 +17,7 @@ GameObject:
   - component: {fileID: 6711314966852573413}
   - component: {fileID: 6629868733337239634}
   - component: {fileID: 4012965219182562668}
+  - component: {fileID: 4130430905632573724}
   m_Layer: 9
   m_Name: Paint Decal Prefab Test
   m_TagString: PaintDecal
@@ -188,6 +189,7 @@ MonoBehaviour:
   cwPaintDecal2D: {fileID: 5417169386540376951}
   Collider: {fileID: 1001324802868575255}
   Rigidbody2D: {fileID: 4658211246905881108}
+  PaintGrid: {fileID: 4130430905632573724}
   ID: 0
   TriggerPaintDecalPrefabs: []
   distance: 0
@@ -236,6 +238,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   SettingsContain: {fileID: 11400000, guid: 7321532506108d04cacf4f6120e8f8a6, type: 2}
+--- !u!114 &4130430905632573724
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4063683435601179235}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6471d56cd292ee442a4e4d2bd8f0a639, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  PaintDecal2D: {fileID: 5417169386540376951}
+  gridProcessor: {fileID: 0}
+  brush: {fileID: 1668528333560512085}
+  brushRadius: 0.5
 --- !u!1 &4231890542564576937
 GameObject:
   m_ObjectHideFlags: 0

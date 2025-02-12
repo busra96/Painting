@@ -129,7 +129,8 @@ using UnityEngine.EventSystems;
 
 public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
 {
-     public GameObject prefabToSpawn;
+    public CurrentImageGridProcessor gridProcessor;
+    public GameObject prefabToSpawn;
     public Camera mainCamera;
     public ColorSelection ColorSelection;
 
@@ -191,13 +192,17 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
     {
         GameObject obj = Instantiate(prefabToSpawn, position, Quaternion.identity);
         obj.GetComponent<CwPaintDecal2D>().Color = ColorSelection.GetOriginalColor();
-        obj.GetComponent<PaintDecalPrefab>().ColorType = ColorSelection.ColorType;
+        PaintDecalPrefab paintDecalPrefab = obj.GetComponent<PaintDecalPrefab>();
+        paintDecalPrefab.ColorType = ColorSelection.ColorType;
+        paintDecalPrefab.Init(gridProcessor);
         paintPositions.Add(position);
 
         int priority = -Mathf.CeilToInt(position.y / positionStepY);
         obj.GetComponent<CwHitNearby>().Priority = priority;
         obj.GetComponent<CwPaintDecal2D>().Radius = initialRadius + priority * 0.005f;
 
+        paintDecalPrefab.PaintGrid.SetBlushRadius();
+        
         Movement paintMovement = obj.GetComponent<Movement>();
         paintMovements.Add(paintMovement);
         paintMovement.gameObject.name = "Paint" + paintIndex;

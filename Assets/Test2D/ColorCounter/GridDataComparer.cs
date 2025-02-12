@@ -1,9 +1,12 @@
 using System.Collections.Generic;
+using DG.Tweening;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class GridDataComparer : MonoBehaviour
 {
+    public Slider slider;
     public TextMeshProUGUI yuzdelikText;
     public ImageGridProcessor imageGridProcessor;
     public CurrentImageGridProcessor currentImageGridProcessor;
@@ -12,8 +15,9 @@ public class GridDataComparer : MonoBehaviour
     public void Test()
     {
        float target =  CompareGridData(imageGridProcessor.GetGridData(), currentImageGridProcessor.GetGridData());
-       yuzdelikText.text = target + " / " + 100;
-       Debug.Log( " Target " + target );
+       int roundedTarget = Mathf.CeilToInt(target); // En yakın üst tam sayıya yuvarla
+       yuzdelikText.text = roundedTarget + " / " + 100;
+       slider.DOValue(roundedTarget, 0.25f);
     }
     
     

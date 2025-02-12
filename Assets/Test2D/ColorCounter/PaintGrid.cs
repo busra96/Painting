@@ -8,6 +8,7 @@ public class PaintGrid : MonoBehaviour
     public Transform brush; // Boya objesi (örneğin fırça)
     public float brushRadius = 0.5f; // Boya objesinin etkilediği yarıçap
     private Color color;
+    private bool isActive = false;
 
     private Color[] predefinedColors = new Color[]
     {
@@ -15,8 +16,21 @@ public class PaintGrid : MonoBehaviour
         Color.white, Color.black, Color.cyan, Color.magenta
     };
 
+    public void Activate()
+    {
+        isActive = true;
+    }
+
+    public void SetBlushRadius()
+    {
+        brushRadius = PaintDecal2D.Radius;
+    }
+
     void Update()
     {
+        if(!isActive)
+            return;
+        
         if (gridProcessor == null || brush == null)
         {
             Debug.LogError("GridProcessor veya Brush atanmadı!");
