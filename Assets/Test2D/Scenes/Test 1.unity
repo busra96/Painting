@@ -207,7 +207,7 @@ GameObject:
   - component: {fileID: 22229071}
   - component: {fileID: 22229078}
   m_Layer: 0
-  m_Name: Erase Alpha (Blend Mode = Subtractive, Channels = 0,0,0,1)
+  m_Name: Erase Alpha
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -747,52 +747,6 @@ SpriteRenderer:
   m_WasSpriteAssigned: 1
   m_MaskInteraction: 0
   m_SpriteSortPoint: 0
---- !u!1 &220715245
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 220715247}
-  - component: {fileID: 220715246}
-  m_Layer: 0
-  m_Name: ImageGridProcessor_TargetImage
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &220715246
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 220715245}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1532a65dbe01253479ab4ed3c7fc7693, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  spriteRenderer: {fileID: 1116473037}
-  gridData: []
---- !u!4 &220715247
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 220715245}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &225244128
 GameObject:
   m_ObjectHideFlags: 0
@@ -1832,7 +1786,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 1024
   smoothSpeed: 50
-  gridDataComparer: {fileID: 0}
+  gridDataComparer: {fileID: 2007816879}
 --- !u!65 &665435451
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -2140,7 +2094,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 143c868612e50a341b1c51f80fb55042, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  gridProcessor: {fileID: 0}
+  gridProcessor: {fileID: 1116473039}
   prefabToSpawn: {fileID: 4063683435601179235, guid: 85506099f733cb84cacae6a63548339e, type: 3}
   mainCamera: {fileID: 1410359066}
   ColorSelection: {fileID: 5819775}
@@ -3132,9 +3086,10 @@ GameObject:
   m_Component:
   - component: {fileID: 1116473038}
   - component: {fileID: 1116473037}
+  - component: {fileID: 1116473040}
   - component: {fileID: 1116473039}
   m_Layer: 0
-  m_Name: Last Image Sprite Renderer - CurrentImageGridProcessor
+  m_Name: Last Image Sprite Renderer  Grid Processors
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3220,6 +3175,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   spriteRenderer: {fileID: 218013829}
+  gridData: []
+--- !u!114 &1116473040
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1116473036}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1532a65dbe01253479ab4ed3c7fc7693, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  spriteRenderer: {fileID: 1116473037}
   gridData: []
 --- !u!1001 &1149618165
 PrefabInstance:
@@ -4709,7 +4678,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   slider: {fileID: 298498982}
   yuzdelikText: {fileID: 298498981}
-  imageGridProcessor: {fileID: 220715246}
+  imageGridProcessor: {fileID: 1116473040}
   currentImageGridProcessor: {fileID: 1116473039}
 --- !u!1 &2034121687
 GameObject:
@@ -4804,5 +4773,4 @@ SceneRoots:
   - {fileID: 1589197233}
   - {fileID: 724257848}
   - {fileID: 225244129}
-  - {fileID: 220715247}
   - {fileID: 1116473038}
