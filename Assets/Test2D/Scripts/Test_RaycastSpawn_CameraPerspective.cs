@@ -53,12 +53,18 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetMouseButtonDown(0) && !EventSystem.current.IsPointerOverGameObject())
+        if (Input.GetMouseButtonDown(0))
         {
-            Vector3 mousePosition = GetWorldPositionFromMouse();
-            if (paintPositions.Contains(mousePosition)) return;
-            HandleSpawn(mousePosition);
-            isHolding = true;
+            Vector2 mousePosition = GetWorldPositionFromMouse();
+            RaycastHit2D hit = Physics2D.Raycast(mousePosition, Vector2.zero);
+
+            if (hit.collider != null && hit.collider.CompareTag("PaintableBook"))
+            {
+                if (paintPositions.Contains(mousePosition)) return;
+
+                HandleSpawn(mousePosition);
+                isHolding = true;
+            }
         }
 
         if (Input.GetMouseButtonUp(0))
