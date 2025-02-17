@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using PaintCore;
 using PaintIn2D;
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
 {
@@ -24,7 +23,8 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
     private List<Vector3> paintPositions = new List<Vector3>();
 
     public GameObject PaintDecalParent;
-    
+
+    public bool isPaintAmountDone = false;
     public static Action OnSpawnPaintDecal;
 
     private void OnEnable()
@@ -39,6 +39,7 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
 
     private void FinishPaintAmount()
     {
+        isPaintAmountDone = true;
         PaintDecalParent.SetActive(false);
     }
 
@@ -53,6 +54,8 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
 
     void Update()
     {
+        if(isPaintAmountDone) return;
+        
         if (Input.GetMouseButtonDown(0))
         {
             Vector2 mousePosition = GetWorldPositionFromMouse();

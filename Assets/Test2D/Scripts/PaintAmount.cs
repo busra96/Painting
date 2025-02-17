@@ -25,7 +25,7 @@ public class PaintAmount : MonoBehaviour
     {
         isFull = false;
         amount = 0;
-        PaintAmountSlider.maxValue = MaxAmount;
+       // PaintAmountSlider.maxValue = MaxAmount;
         float percAmount =  Helper.Remap(amount, 0, MaxAmount,0, 100 );
         PaintAmountSlider.value = percAmount;
     }

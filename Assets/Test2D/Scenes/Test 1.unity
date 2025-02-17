@@ -3536,7 +3536,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   PaintAmountSlider: {fileID: 1149618168}
-  MaxAmount: 100
+  MaxAmount: 70
   isFull: 0
 --- !u!114 &1149618168 stripped
 MonoBehaviour:
