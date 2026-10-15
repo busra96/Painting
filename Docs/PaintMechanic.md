@@ -8,9 +8,11 @@ Kağıda basılı tutmak boya bırakır; hareket etmek aynı akışı kesintisiz
 
 CW PaintIn2D'nin decal komutları, PaintCore'un karışım shader'ları ve Flow örnekleri incelendi. Bunlar renk/normal çizme veya mevcut pikselleri taşıma altyapısı sağlıyor. Ana oyunun ihtiyaç duyduğu, bırakılan miktarı koruyan boya haznesi ve kalınlık hesabı ayrıca eklendi.
 
-`ImpastoPaintSurface` kağıdın üzerinde bir kalınlık ve pigment alanı tutar. Her döküşün ağırlıkları normalize edilir: kenara dökülen boya da verilen hacmi taşır. Kalın yığınlar kısa süre boyunca, hacmini ve pigmentini koruyarak gevşer.
+`ImpastoPaintSurface` kağıdın üzerinde toplam kalınlığı, toplam pigment kütlesini ve görünür en son boya katmanını tutar. Görünür katman toplam miktarın bir parçasıdır; ikinci bir boya kaynağı oluşturmaz. Aynı noktaya farklı renk koymak önceki boyayı anında homojen bir karışıma dönüştürmez. Yeni katmanın optik örtücülüğü kendi kalınlığına bağlıdır: yeterli boya eski rengi örter, çok ince boya altındaki rengi gösterebilir. Her döküşün ağırlıkları normalize edilir: kenara dökülen boya da verilen hacmi taşır. Kalın yığınlar kısa süre boyunca, hacmini ve pigmentini koruyarak gevşer. Gevşeme sırasında eski pigment yeni katmanın üstüne geçirilmez.
 
-Spatula, geçtiği her satırı bir kez işler. Aldığı boya temas yüzeyindeki taze katman ve arkada taşınan ana hazne arasında korunur. Yeni renk önce yüzeyi kaplar; ana haznedeki eski pigment yavaşça geri katılıp renk şeritleri oluşturur. Boya yükü arttıkça yanlara doğru akış güçlenir. Akış katsayısı dünya mesafesine göre hesaplanır. Hacim ve üç pigment kanalı aynı örtük difüzyon sistemiyle çözülür; bu, çok sayıda küçük adım gerektirmeden kütleyi ve pozitifliği korur. Kağıt kenarında dışarı akış yapılmaz.
+Spatula, geçtiği her satırı bir kez işler. Aldığı boya temas yüzeyindeki taze katman ve arkada taşınan ana hazne arasında korunur. Farklı bir boya katmanına gelince önceki temas boyası ana hazneye alınır; yeni yüzey boyası temas yüzeyine geçer. Farklı renkteki iki açık temas katmanı yana akarken doğrudan birbirinin içinden geçirilmez. Bu yeni katmanın önünde tutulabilecek miktar sabit küçük bir hazneyle kesilmez. Bırakılan tabaka önce bu sonlu taze kaynaktan beslenir. Yeterli alt boya varken üst sıradan taşınan eski renk içinden çıkmaz; taze kaynak inceldikçe eski hazne yumuşak bir geçişle yeniden katkı verir. Bu yüzden alt boyanın miktarı hem rengin örtücülüğünü hem o rengin kaç dünya birimi ilerleyebileceğini belirler.
+
+Boya yükü arttıkça yanlara doğru akış güçlenir. Akış katsayısı dünya mesafesine göre hesaplanır. Hacim ve üç pigment kanalı aynı örtük difüzyon sistemiyle çözülür; bu, çok sayıda küçük adım gerektirmeden kütleyi ve pozitifliği korur. Kağıt kenarında dışarı akış yapılmaz.
 
 Spatulanın bıraktığı tabaka hem yerel yüke hem temas dokusuna bağlıdır. İzler yol boyunca hafifçe kıvrılıp değişir; sabit bir tarak deseni tekrarlanmaz. Miktar azaldıkça boya incelir ve düzensiz ince izler halinde tükenir. Sayfa bittiğinde kalan boya haznede kalır. Hızlı ve yavaş sürüklemelerde taşınan miktar aynıdır; hareketsiz spatula boya harcamaz.
 
@@ -36,8 +38,9 @@ Bu model kıvamlı akrilik boya için bir yükseklik alanı yaklaşımıdır. Ü
 | PourUnitsPerWorldUnit | Hareketli çizgide minimum boya miktarı |
 | FilmThickness | Spatuladan sonra kalan tabaka; azaltmak aynı boyayla daha uzun iz oluşturur |
 | FeatherDistance | Boya tükenirken incelen bölümün uzunluğu |
+| PigmentOpacity | Birim yüzey kalınlığının örtücülüğü; yüksek değerde ince boya daha opak görünür, hacmi veya yayılma miktarını değiştirmez |
 | LateralFlow | Spatulanın önünde biriken boyanın yana açılması |
-| ColorRibbons | Yeni pigmentin temas katmanında ayrı kalma oranı; 0 tüm pigmenti ana haznede karıştırır |
+| ColorRibbons | Yeni yüzey boyasının temas katmanında tutulma oranı; yüksek değer yeni rengin daha uzun süre örtmesini sağlar, 0 tüm pigmenti ana haznede karıştırır |
 | SurfaceVariation | Yol boyunca değişen ıslak spatula izinin belirginliği |
 | ReliefHeight | Kalınlığın görsel kabarıklığı |
 | WetGloss | Islak yüzey parlaması |
@@ -52,6 +55,8 @@ Kağıt üzerindeki `ImpastoPaintSurface.resolution` ana sahnede 512'dir. Renk h
 Unity menüsü: **Tools → Painting → Run Mechanic Checks**. Aktif sahneyi kaydetme seçeneği sunduktan sonra ana sahneyi açar, Play Mode içinde kontrolleri çalıştırır ve çıkar. Batch giriş noktası: `PaintingMechanicChecks.RunBatch`.
 
 Kontroller hacim ve üç pigment kanalının korunmasını, miktar/alan ilişkisini, yanal açılmayı, taze renk şeritlerini, hızlı/yavaş sürükleme ve yığın gevşemesi tutarlılığını, pigment renginin okunmasını, gölgenin puandan ayrılmasını, spatula hit alanını, parmak bırakılınca devam eden yumuşamayı, sonuç ve tekrar akışını kapsar. Unity'den alınan görüntüler `Logs/PaintingPreview` altına, yayılmanın ardışık kareleri `Animation` alt klasörüne yazılır; bu klasörler Git'e dahil değildir.
+
+Katman kontrolleri ayrıca aynı noktaya yeni renk koymayı, gevşerken katman sırasının korunmasını ve büyük bir eski boya haznesi üzerinde az/çok yeni boya taşımayı sınar. `Amount-Layers.png` karşılaştırmasında iki üst mavi yığın eşit miktardadır; sol alt sarı 0,12 birim, sağ alt sarı 2,4 birimdir. Sarı miktarı arttıkça eski rengi örttüğü mesafe uzamalıdır.
 
 Doğrulanan editör: Unity 6000.3.8f1. UI metin sarma API'si için Unity 2022/TMP 3 ve Unity 6 arasında derleme koşulu bulunur; yerel proje/paket yükseltmeleri mekanik değişikliklerinin parçası değildir.
 

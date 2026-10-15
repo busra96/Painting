@@ -34,6 +34,13 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
     private Sprite bladeSprite;
     private float[] thickness, blade, bladeSkin, contactTexture;
     private Vector3[] pigment, bladePigment, skinPigment;
+    // Visible surface material is a subset of the total mass, not an extra supply of paint.
+    private float[] surfaceThickness;
+    private Vector3[] surfacePigment;
+    private int[] surfaceOrder, bladeOrder;
+    private int depositOrder;
+    private Color lastDepositColor;
+    private bool hasDepositColor;
     private float[] flowEdges, flowUpper, flowVolume;
     private const int DomeSize = 65;
     private float[] domeKernel;
@@ -60,6 +67,7 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
     private float SideFlow => settings != null ? settings.LateralFlow : 0.012f;
     private float Ribbons => settings != null ? settings.ColorRibbons : 0.68f;
     private float Variation => settings != null ? settings.SurfaceVariation : 0.32f;
+    private float Opacity => settings != null ? settings.PigmentOpacity : 65f;
 
     private void Awake() => Active = this;
 
@@ -77,12 +85,16 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         cellArea = dx * dy;
         thickness = new float[width * height];
         pigment = new Vector3[thickness.Length];
+        surfaceThickness = new float[thickness.Length];
+        surfacePigment = new Vector3[thickness.Length];
+        surfaceOrder = new int[thickness.Length];
         tilesX = (width + TileSize - 1) / TileSize;
         tilesY = (height + TileSize - 1) / TileSize;
         settlingTicks = new byte[tilesX * tilesY];
         changedTiles = new bool[settlingTicks.Length];
         blade = new float[width];
         bladeSkin = new float[width];
+        bladeOrder = new int[width];
         flowEdges = new float[width];
         flowUpper = new float[width];
         flowVolume = new float[width];
@@ -163,13 +175,22 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
             float volume = units * UnitVolume;
             float scale = volume / (weight * cellArea);
             Vector3 density = Absorption(color);
+            if (!hasDepositColor || color != lastDepositColor)
+            {
+                depositOrder++;
+                lastDepositColor = color;
+                hasDepositColor = true;
+            }
             for (int y = y0; y <= y1; y++)
             for (int x = x0; x <= x1; x++)
             {
                 float amount = Dome(x, y, center, rx, ry) * scale;
+                if (amount <= 0) continue;
                 int index = y * width + x;
+                Vector3 addedMass = density * amount;
                 thickness[index] += amount;
-                pigment[index] += density * amount;
+                pigment[index] += addedMass;
+                AddSurfaceLayer(index, amount, addedMass, depositOrder);
             }
             DepositedVolume += volume;
             PaperVolume += volume;
@@ -262,10 +283,31 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         if (Mathf.Abs(difference) < 0.18f || Mathf.Max(thickness[a], thickness[b]) < 0.9f) return false;
         int from = difference > 0 ? a : b, to = difference > 0 ? b : a;
         float amount = Mathf.Min(thickness[from] * 0.12f, (Mathf.Abs(difference) - 0.18f) * 0.1f);
-        Vector3 mass = pigment[from] * (amount / Mathf.Max(thickness[from], 0.000001f));
+        float fraction = amount / Mathf.Max(thickness[from], 0.000001f);
+        Vector3 mass = pigment[from] * fraction;
+        float visible = surfaceThickness[from] * fraction;
+        Vector3 visibleMass = surfacePigment[from] * fraction;
+        surfaceThickness[from] -= visible;
+        surfacePigment[from] -= visibleMass;
         thickness[from] -= amount; thickness[to] += amount;
         pigment[from] -= mass; pigment[to] += mass;
+        // An older neighboring color cannot move above a newer surface coat while heaps relax.
+        if (surfaceOrder[from] >= surfaceOrder[to])
+            AddSurfaceLayer(to, visible, visibleMass, surfaceOrder[from]);
         return true;
+    }
+
+    private void AddSurfaceLayer(int index, float amount, Vector3 mass, int order)
+    {
+        if (amount <= 0) return;
+        if (surfaceOrder[index] != order)
+        {
+            surfaceThickness[index] = 0;
+            surfacePigment[index] = Vector3.zero;
+            surfaceOrder[index] = order;
+        }
+        surfaceThickness[index] += amount;
+        surfacePigment[index] += mass;
     }
 
     public void BeginSpread(float worldY)
@@ -305,13 +347,25 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
             int i = y * width + x;
             float collected = thickness[i] * pickup;
             Vector3 mass = pigment[i] * pickup;
+            float visible = surfaceThickness[i] * pickup;
+            Vector3 visibleMass = surfacePigment[i] * pickup;
             thickness[i] -= collected; pigment[i] -= mass;
+            surfaceThickness[i] -= visible; surfacePigment[i] -= visibleMass;
             float volume = collected * cellArea;
-            // Fresh paint wets the contact face first. The rest stays in the deeper carried pool.
-            bladeSkin[x] += volume * ribbons;
-            skinPigment[x] += mass * (cellArea * ribbons);
-            blade[x] += volume * (1 - ribbons);
-            bladePigment[x] += mass * (cellArea * (1 - ribbons));
+            if (visible > 0)
+            {
+                // Meeting a different coat rolls the previous contact layer behind the new paint.
+                // Its mass remains in the pool, but cannot shine through a well supplied fresh coat.
+                if (bladeOrder[x] != surfaceOrder[i])
+                {
+                    MovePaint(bladeSkin, skinPigment, x, blade, bladePigment, x, bladeSkin[x]);
+                    bladeOrder[x] = surfaceOrder[i];
+                }
+                bladeSkin[x] += visible * cellArea * ribbons;
+                skinPigment[x] += visibleMass * (cellArea * ribbons);
+            }
+            blade[x] += volume - visible * cellArea * ribbons;
+            bladePigment[x] += (mass - visibleMass * ribbons) * cellArea;
             PaperVolume -= volume; BladeVolume += volume;
         }
         FlowAlongBlade();
@@ -323,13 +377,6 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
             if (carried <= 0) continue;
             float grain = contactTexture[i];
             float load = carried / (dx * 0.12f);
-            float capacity = dx * 0.09f * (0.38f + (grain - 0.5f) * 0.12f);
-            // Excess fresh paint rolls into the pool; a little old pigment continually returns to the face.
-            if (bladeSkin[x] > capacity)
-                MovePaint(bladeSkin, skinPigment, x, blade, bladePigment, x, bladeSkin[x] - capacity);
-            float replenish = Mathf.Min(capacity, carried * 0.35f) * ribbons - bladeSkin[x];
-            if (replenish > 0)
-                MovePaint(blade, bladePigment, x, bladeSkin, skinPigment, x, replenish * 0.12f);
             // Contact changes along the travel as well as across the blade, so ridges bend and terminate.
             float contact = 1 + (grain - 0.5f) * variation;
             float target = film * contact * Mathf.Lerp(0.9f, 1.2f, Mathf.Clamp01(load / 2)) * cellArea;
@@ -337,13 +384,17 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
             float wetting = Mathf.Lerp(0.45f, 1, Mathf.SmoothStep(0, 1,
                 Mathf.Clamp01(fullness * 2.2f + (grain - 0.5f) * 0.9f)));
             float volume = Mathf.Min(carried, target * fullness * wetting);
-            float fromSkin = Mathf.Min(bladeSkin[x], volume * (0.72f + grain * 0.2f));
+            // The newest contact coat covers the old pool until its finite supply becomes too thin.
+            float coatSupply = Mathf.Clamp01(bladeSkin[x] / (target * tailRows));
+            float coatCoverage = coatSupply * coatSupply * (3 - 2 * coatSupply);
+            float fromSkin = Mathf.Min(bladeSkin[x], volume * coatCoverage);
             float fromPool = Mathf.Min(blade[x], volume - fromSkin);
             fromSkin += Mathf.Min(bladeSkin[x] - fromSkin, Mathf.Max(0, volume - fromSkin - fromPool));
             Vector3 mass = TakePaint(bladeSkin, skinPigment, x, fromSkin) + TakePaint(blade, bladePigment, x, fromPool);
             volume = fromSkin + fromPool;
             thickness[i] += volume / cellArea;
             pigment[i] += mass / cellArea;
+            AddSurfaceLayer(i, volume / cellArea, mass / cellArea, bladeOrder[x]);
             PaperVolume += volume; BladeVolume -= volume;
         }
     }
@@ -364,6 +415,13 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         flowEdges[width - 1] = 0;
         if (!flowing) return;
         SolveBladeLayer(blade, bladePigment, 1);
+        for (int x = 0; x < width - 1; x++)
+        {
+            // Different exposed coats displace one another instead of diffusing old pigment through a fresh cover.
+            if (bladeSkin[x] <= 0 && bladeSkin[x + 1] > 0) bladeOrder[x] = bladeOrder[x + 1];
+            if (bladeSkin[x + 1] <= 0 && bladeSkin[x] > 0) bladeOrder[x + 1] = bladeOrder[x];
+            if (bladeOrder[x] != bladeOrder[x + 1]) flowEdges[x] = 0;
+        }
         SolveBladeLayer(bladeSkin, skinPigment, 1.4f);
     }
 
@@ -427,6 +485,7 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
             RecoloredPixelsLastFlush = 0;
             var pixels = colorTexture.GetPixelData<Color32>(0);
             var heights = heightTexture.GetPixelData<float>(0);
+            float opacity = Opacity;
             // Recompute absorption only in changed tiles, including when deposits are far apart.
             for (int tile = 0; tile < changedTiles.Length; tile++)
             {
@@ -442,10 +501,7 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
                     float h = thickness[i];
                     heights[i] = h;
                     if (h < 0.000001f) { pixels[i] = new Color32(255, 255, 255, 255); continue; }
-                    Vector3 density = pigment[i] / h;
-                    Color color = PigmentColor(density);
-                    float coverage = 1 - Mathf.Exp(-h * 65f);
-                    pixels[i] = Color.Lerp(Color.white, color, coverage);
+                    pixels[i] = VisibleColor(i, opacity);
                 }
             }
             // Write straight into Texture2D backing storage; avoid copying the full managed arrays each frame.
@@ -492,6 +548,36 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         return thickness[Mathf.Clamp(Mathf.RoundToInt(p.y), 0, height - 1) * width + Mathf.Clamp(Mathf.RoundToInt(p.x), 0, width - 1)];
     }
 
+    public Color SamplePigment(Vector3 world)
+    {
+        if (!Contains(world)) return Color.white;
+        Vector2 p = GridPoint(world);
+        int index = Mathf.Clamp(Mathf.RoundToInt(p.y), 0, height - 1) * width + Mathf.Clamp(Mathf.RoundToInt(p.x), 0, width - 1);
+        return VisibleColor(index, Opacity);
+    }
+
+    private Color VisibleColor(int index, float opacity)
+    {
+        float h = thickness[index];
+        if (h <= 0.000001f) return Color.white;
+        float top = Mathf.Min(h, surfaceThickness[index]);
+        if (top > 0.000001f)
+        {
+            Color coat = PigmentColor(surfacePigment[index] / surfaceThickness[index]);
+            // At >99.5% coverage the buried color is visually negligible; skip its optical conversion.
+            if (top * opacity >= 5.3f) return coat;
+            float underneath = h - top;
+            Color baseColor = Color.white;
+            if (underneath > 0.000001f)
+            {
+                Vector3 mass = Vector3.Max(Vector3.zero, pigment[index] - surfacePigment[index]);
+                baseColor = Color.Lerp(Color.white, PigmentColor(mass / underneath), 1 - Mathf.Exp(-underneath * opacity));
+            }
+            return Color.Lerp(baseColor, coat, 1 - Mathf.Exp(-top * opacity));
+        }
+        return Color.Lerp(Color.white, PigmentColor(pigment[index] / h), 1 - Mathf.Exp(-h * opacity));
+    }
+
     public double MeasureVolume()
     {
         double total = 0;
@@ -525,6 +611,12 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         if (!IsReady) return;
         Array.Clear(thickness, 0, thickness.Length);
         Array.Clear(pigment, 0, pigment.Length);
+        Array.Clear(surfaceThickness, 0, surfaceThickness.Length);
+        Array.Clear(surfacePigment, 0, surfacePigment.Length);
+        Array.Clear(surfaceOrder, 0, surfaceOrder.Length);
+        Array.Clear(bladeOrder, 0, bladeOrder.Length);
+        depositOrder = 0;
+        hasDepositColor = false;
         Array.Clear(blade, 0, blade.Length);
         Array.Clear(bladeSkin, 0, bladeSkin.Length);
         Array.Clear(bladePigment, 0, bladePigment.Length);

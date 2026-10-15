@@ -10,6 +10,7 @@ public class SettingsContain : ScriptableObject
     [Min(0.1f)] public float PourUnitsPerWorldUnit = 1.8f;
     [Range(0.02f, 0.3f)] public float FilmThickness = 0.085f;
     [Range(0.1f, 1f)] public float FeatherDistance = 0.4f;
+    [Range(20, 120)] public float PigmentOpacity = 65f;
     [Header("Paint carried by the blade")]
     [Range(0, 0.03f)] public float LateralFlow = 0.012f;
     [Range(0, 1)] public float ColorRibbons = 0.68f;

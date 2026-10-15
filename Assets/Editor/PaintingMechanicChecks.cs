@@ -80,6 +80,7 @@ public static class PaintingMechanicChecks
                 CheckVolume();
                 CheckAmountAndStepSize();
                 CheckNaturalTransport();
+                CheckCoatOrderAndSupply();
                 CheckDrawingWork();
                 CheckLoadedBlade();
                 CaptureVolumeResponse();
@@ -343,6 +344,70 @@ public static class PaintingMechanicChecks
         Check(Vector3.Distance(mass, surface.MeasurePigmentMass()) < 0.0003f,
             "A densely loaded full-width blade conserves pigment mass");
     }
+
+    private static void CheckCoatOrderAndSupply()
+    {
+        Color blue = new Color(0.08f, 0.29f, 0.77f);
+        Color yellow = new Color(1, 0.76f, 0.04f);
+        Vector3 overlap = new Vector3(0, 4.3f, 0);
+        surface.ClearPaint();
+        surface.Deposit(overlap, blue, 4, Vector2.zero);
+        surface.Deposit(overlap, yellow, 0.8f, Vector2.zero);
+        Check(ColorDistance(surface.SamplePigment(overlap), yellow) < 0.04f,
+            "A sufficiently thick new coat hides the previous color before spreading");
+        Vector3 mass = surface.MeasurePigmentMass();
+        surface.AdvanceSettling(0.3f);
+        Check(ColorDistance(surface.SamplePigment(overlap), yellow) < 0.08f,
+            "Settling cannot pull an older color above a newer opaque coat");
+        surface.BeginSpread(7.5f); surface.SpreadTo(-5.5f); surface.FinishSpread();
+        Check(Math.Abs(surface.MeasureVolume() - surface.DepositedVolume) < 0.0002 &&
+            Vector3.Distance(mass, surface.MeasurePigmentMass()) < 0.0003f,
+            "Buried pigment stays in the material budget when coats cover one another");
+
+        float smallReach = LowerCoat(0.12f, "Layer-Small");
+        Color thin = surface.SamplePigment(new Vector3(0, 3.3f, 0));
+        float largeReach = LowerCoat(2.4f, "Layer-Large");
+        Color thick = surface.SamplePigment(new Vector3(0, 3.3f, 0));
+        Debug.Log("COAT RESPONSE: small_reach=" + smallReach + " large_reach=" + largeReach +
+            " thin=" + thin + " thick=" + thick);
+        Check(largeReach > smallReach + 0.6f, "More of the lower color creates a longer opaque covering trail");
+        Check(ColorDistance(thick, yellow) < ColorDistance(thin, yellow) * 0.55f,
+            "Lower paint quantity determines whether the old carried color is visible");
+        Check(ColorDistance(thick, yellow) < 0.10f,
+            "An ample lower coat stays opaque even over a large older paint reservoir");
+        Check(spawner.gridProcessor.CapturePaintedImage(), "Layered pigment remains readable by the result system");
+        surface.ClearPaint();
+        foreach (float x in new[] { -2f, 2f })
+            surface.Deposit(new Vector3(x, 5.5f, 0), blue, 6, Vector2.zero);
+        surface.Deposit(new Vector3(-2, 4.3f, 0), yellow, 0.12f, Vector2.zero);
+        surface.Deposit(new Vector3(2, 4.3f, 0), yellow, 2.4f, Vector2.zero);
+        surface.BeginSpread(7.5f); surface.SpreadTo(-5.5f); surface.FinishSpread();
+        Capture("Amount-Layers");
+    }
+
+    private static float LowerCoat(float units, string preview)
+    {
+        surface.ClearPaint();
+        surface.Deposit(new Vector3(0, 5.5f, 0), new Color(0.08f, 0.29f, 0.77f), 6, Vector2.zero);
+        surface.Deposit(new Vector3(0, 4.3f, 0), new Color(1, 0.76f, 0.04f), units, Vector2.zero);
+        Vector3 mass = surface.MeasurePigmentMass();
+        surface.BeginSpread(7.5f); surface.SpreadTo(-5.5f); surface.FinishSpread();
+        Check(Math.Abs(surface.MeasureVolume() - surface.DepositedVolume) < 0.0002 &&
+            Vector3.Distance(mass, surface.MeasurePigmentMass()) < 0.0003f,
+            "Crossing different paint amounts preserves all material");
+        float reach = 0;
+        for (int i = 0; i < 150; i++)
+        {
+            float y = 4.1f - i * 0.04f;
+            if (ColorDistance(surface.SamplePigment(new Vector3(0, y, 0)), new Color(1, 0.76f, 0.04f)) < 0.15f)
+                reach = Mathf.Max(reach, 4.1f - y);
+        }
+        Capture(preview);
+        return reach;
+    }
+
+    private static float ColorDistance(Color a, Color b) =>
+        Vector3.Distance(new Vector3(a.r, a.g, a.b), new Vector3(b.r, b.g, b.b));
 
     private static void CheckDrawingWork()
     {
