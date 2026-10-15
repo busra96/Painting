@@ -3,100 +3,112 @@ using UnityEngine;
 
 public class Spatula : MonoBehaviour
 {
-   public List<PaintDecalPrefab> PaintDecalPrefabs;
-   
-   private void OnEnable()
-   {
-      Movement.OnPaintDecalPrefabOnDestroy += OnPaintDecalPrefabOnDestroy;
-   }
+    public List<PaintDecalPrefab> PaintDecalPrefabs = new List<PaintDecalPrefab>();
+    private const float ColumnTolerance = 0.01f;
+    private float lastY;
+    private readonly List<PaintDecalPrefab> activeLayers = new List<PaintDecalPrefab>();
+    private ImpastoPaintSurface surface;
 
-   private void OnDisable()
-   {
-      Movement.OnPaintDecalPrefabOnDestroy -= OnPaintDecalPrefabOnDestroy;
-   }
+    private void OnEnable()
+    {
+        lastY = transform.position.y;
+        surface = ImpastoPaintSurface.Active;
+        if (surface != null && surface.IsReady && Mathf.Abs(transform.position.x - surface.transform.position.x) < 5)
+        {
+            surface.StyleSpatula(this);
+            surface.BeginSpread(transform.position.y + 0.05f);
+        }
+        else surface = null;
+        Movement.OnPaintDecalPrefabOnDestroy += RemovePaintDecalList;
+    }
 
-   private void OnPaintDecalPrefabOnDestroy(PaintDecalPrefab paintDecalPrefab)
-   {
-      RemovePaintDecalList(paintDecalPrefab);
-   }
+    private void OnDisable() => Movement.OnPaintDecalPrefabOnDestroy -= RemovePaintDecalList;
 
-   private float maxDistance;
-   public void AddPaintDecalList(PaintDecalPrefab paintDecalPrefab)
-   {
-      if (paintDecalPrefab == null || paintDecalPrefab.movement == null)
-         return;
+    private void FixedUpdate()
+    {
+        if (surface != null) return;
+        float travel = Mathf.Max(0, lastY - transform.position.y);
+        lastY = transform.position.y;
+        if (travel <= 0) return;
+        activeLayers.Clear();
+        for (int i = PaintDecalPrefabs.Count - 1; i >= 0; i--)
+        {
+            PaintDecalPrefab decal = PaintDecalPrefabs[i];
+            if (decal == null) { PaintDecalPrefabs.RemoveAt(i); continue; }
+            if (decal.gameObject.activeSelf) activeLayers.Add(decal);
+        }
+        // Newly revealed colors start on the next step; they cannot consume the same travel twice.
+        foreach (PaintDecalPrefab decal in activeLayers)
+        {
+            decal.movement.Consume(travel);
+            if (!decal.movement.IsExhausted) continue;
+            RemovePaintDecalList(decal);
+            Destroy(decal.gameObject);
+        }
+    }
 
-      if (PaintDecalPrefabs.Contains(paintDecalPrefab))
-         return;
+    private void LateUpdate()
+    {
+        if (surface == null) return;
+        float travel = Mathf.Max(0, lastY - transform.position.y);
+        surface.SpreadTo(transform.position.y + 0.05f, travel / Mathf.Max(Time.deltaTime, 0.001f));
+        lastY = transform.position.y;
+    }
 
-       PaintDecalPrefabs.Add(paintDecalPrefab);
-       
-       for (int i = 0; i < PaintDecalPrefabs.Count; i++)
-       {
-          PaintDecalPrefab pd = PaintDecalPrefabs[i];
-          if(pd.gameObject == paintDecalPrefab.gameObject) continue;
+    public void AddPaintDecalList(PaintDecalPrefab decal)
+    {
+        if (decal == null || decal.movement == null || PaintDecalPrefabs.Contains(decal)) return;
+        PaintDecalPrefab previous = GetHighestPriorityDecal(decal);
+        if (previous != null && previous.ColorType == decal.ColorType)
+        {
+            decal.movement.AddSupply(previous.movement.RemainingDistance);
+            PaintDecalPrefabs.Remove(previous);
+            previous.movement.DisablePaint();
+            previous.gameObject.SetActive(false);
+            Destroy(previous.gameObject);
+        }
+        PaintDecalPrefabs.Add(decal);
+        RefreshColumn(decal.transform.position.x);
+    }
 
-          if (Mathf.Approximately(pd.transform.position.x, paintDecalPrefab.transform.position.x))
-          {
-             if (pd.ColorType == paintDecalPrefab.ColorType )
-             {
-                PaintDecalPrefabs.Remove(pd);
-                Destroy(pd.gameObject);
-             }
-          }
-       }
+    public PaintDecalPrefab GetHighestPriorityDecal(PaintDecalPrefab reference)
+    {
+        if (reference == null) return null;
+        PaintDecalPrefab highest = null;
+        foreach (PaintDecalPrefab decal in PaintDecalPrefabs)
+        {
+            if (decal == null || decal.CwHitNearby == null || decal.movement == null || decal.movement.IsExhausted ||
+                Mathf.Abs(decal.transform.position.x - reference.transform.position.x) > ColumnTolerance) continue;
+            if (highest == null || decal.CwHitNearby.Priority >= highest.CwHitNearby.Priority) highest = decal;
+        }
+        return highest;
+    }
 
-       for (int i = 0; i < PaintDecalPrefabs.Count; i++) //lifetime acılınca lifetime biten objeyi listeden cıkarıp bu foru döndürmek lazım
-       {
-          PaintDecalPrefab pd = PaintDecalPrefabs[i];
-          
-          if (Mathf.Approximately(pd.transform.position.x, paintDecalPrefab.transform.position.x))
-          {
-             if (pd.CwHitNearby.Priority <  GetHighestPriorityDecal(pd).CwHitNearby.Priority )
-             {
-                pd.gameObject.SetActive(false);
-             }
-             GetHighestPriorityDecal(pd).gameObject.SetActive(true);
-          }
-       }
-   }
-   
-   public PaintDecalPrefab GetHighestPriorityDecal(PaintDecalPrefab paintDecalPrefab)
-   {
-      if (PaintDecalPrefabs == null || PaintDecalPrefabs.Count == 0 || paintDecalPrefab == null)
-         return null;
+    private void RefreshColumn(float x)
+    {
+        PaintDecalPrefab highest = null;
+        foreach (PaintDecalPrefab decal in PaintDecalPrefabs)
+        {
+            if (decal == null || Mathf.Abs(decal.transform.position.x - x) > ColumnTolerance ||
+                decal.movement.IsExhausted) continue;
+            if (highest == null || decal.CwHitNearby.Priority >= highest.CwHitNearby.Priority) highest = decal;
+        }
+        foreach (PaintDecalPrefab decal in PaintDecalPrefabs)
+        {
+            if (decal == null || Mathf.Abs(decal.transform.position.x - x) > ColumnTolerance) continue;
+            bool active = decal == highest;
+            decal.CwHitNearby.enabled = active;
+            decal.gameObject.SetActive(active);
+        }
+    }
 
-      PaintDecalPrefab highestPriorityDecal = null;
-      int highestPriority = int.MinValue;
-      float targetX = paintDecalPrefab.transform.position.x;
-
-      foreach (var decal in PaintDecalPrefabs)
-      {
-         if (decal == null || decal.CwHitNearby == null) 
-            continue;
-
-         // Eğer x koordinatları aynıysa ve priority daha yüksekse
-         if (Mathf.Approximately(decal.transform.position.x, targetX) && decal.CwHitNearby.Priority > highestPriority)
-         {
-            highestPriority = decal.CwHitNearby.Priority;
-            highestPriorityDecal = decal;
-         }
-      }
-
-      return highestPriorityDecal;
-   }
-
-   public void RemovePaintDecalList(PaintDecalPrefab paintDecalPrefab)
-   {
-      if (paintDecalPrefab == null || paintDecalPrefab.movement == null)
-         return;
-
-
-      if (!PaintDecalPrefabs.Contains(paintDecalPrefab))
-         return;
-
-      PaintDecalPrefabs.Remove(paintDecalPrefab);
-   }
+    public void RemovePaintDecalList(PaintDecalPrefab decal)
+    {
+        if (decal == null || !PaintDecalPrefabs.Remove(decal)) return;
+        decal.movement.DisablePaint();
+        decal.gameObject.SetActive(false);
+        RefreshColumn(decal.transform.position.x);
+    }
 }
 
-public enum ColorType { Red, Pink, Orange, White, Blue , Green, Yellow}
+public enum ColorType { Red, Pink, Orange, White, Blue, Green, Yellow }

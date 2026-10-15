@@ -3,78 +3,74 @@ using UnityEngine;
 
 public class Movement : MonoBehaviour
 {
-   public PaintDecalPrefab paintDecalPrefab;
-   public bool canMove;
+    public PaintDecalPrefab paintDecalPrefab;
+    public bool canMove;
+    // Retained for existing prefab serialization.
+    [SerializeField] private float movementSpeed = 1.5f;
+    [SerializeField] private float distanceMultiplier;
+    [SerializeField] private GameObject debugGo;
+    public float secondMultiplayer;
+    public float secondMultiplayer2;
+    public static Action<PaintDecalPrefab> OnPaintDecalPrefabOnDestroy;
 
-   [SerializeField] private float movementSpeed = 1.5f;
-   
-   [SerializeField] private float distanceMultiplier;
-   [SerializeField] private GameObject debugGo;
-   
-   private Vector3 startPos;
-   private Vector3 endPos;
-   private bool endPosCalculated;
+    public float RemainingDistance { get; private set; }
+    public bool IsExhausted => RemainingDistance <= 0.0001f;
+    private float totalDistance;
+    private float initialOpacity;
+    private Vector3 initialScale;
+    private bool initialized;
 
-   public static Action<PaintDecalPrefab> OnPaintDecalPrefabOnDestroy;
-   public float secondMultiplayer;
-   public float secondMultiplayer2;
-   
-   private void Start()
-   {
-       startPos = transform.position;
+    private SettingsContain Settings => paintDecalPrefab != null && paintDecalPrefab.OpacityChange != null
+        ? paintDecalPrefab.OpacityChange.SettingsContain : null;
 
-       paintDecalPrefab.OpacityChange.Init(startPos, paintDecalPrefab.cwPaintDecal2D);
-       paintDecalPrefab.ScaleChange.Init(startPos, paintDecalPrefab.cwPaintDecal2D);
-       canMove = true;
-   }
+    private void Initialize()
+    {
+        if (initialized) return;
+        initialized = true;
+        initialOpacity = paintDecalPrefab.cwPaintDecal2D.Opacity;
+        initialScale = paintDecalPrefab.cwPaintDecal2D.Scale;
+    }
 
-   public void CalculateMaxDistance(float lifeTime)
-   {
-       return;
-      //  float calculatedDistance = lifeTime * distanceMultiplier;
-       float calculatedDistance = lifeTime * distanceMultiplier + ( lifeTime * secondMultiplayer ) + secondMultiplayer2;
-       
-       //calculatedDistance = Mathf.Clamp(calculatedDistance, 0.2f, Mathf.Infinity);
-      // // endPos = transform.position + new Vector3(0, -calculatedDistance, 0);
-        if(lifeTime > 5 ) endPos = transform.position + new Vector3(0, -10, 0);
-        else  endPos = transform.position + new Vector3(0, -calculatedDistance, 0);
-        
-       debugGo.transform.position = endPos;
-       endPosCalculated = true;
+    public void CalculateMaxDistance(float amount)
+    {
+        Initialize();
+        float perDab = Settings != null ? Settings.PaintDistancePerDab : 2.8f;
+        float maximum = Settings != null ? Settings.MaxPaintDistance : 14f;
+        RemainingDistance = Mathf.Clamp(Mathf.Max(1f, amount) * perDab, 0.1f, Mathf.Max(0.1f, maximum));
+        totalDistance = RemainingDistance;
+        ApplyAppearance();
+    }
 
-       paintDecalPrefab.OpacityChange.SetEndPos(endPos);
-       paintDecalPrefab.OpacityChange.SetDensity(lifeTime);
-       // ScaleChange.SetEndPos(endPos);
-   }
-   
-  private void Update()
-  {
-     return;
-      if(!canMove) return;
-      if (!endPosCalculated) return;
+    public void AddSupply(float distance)
+    {
+        Initialize();
+        float maximum = Settings != null ? Settings.MaxPaintDistance : 14f;
+        RemainingDistance = Mathf.Min(RemainingDistance + Mathf.Max(0, distance), maximum);
+        totalDistance = RemainingDistance;
+        ApplyAppearance();
+    }
 
-     // OpacityChange.UpdateOpacityLinear();
-     paintDecalPrefab.OpacityChange.UpdateOpacityWithDistanceAndDensity();
-     // ScaleChange.UpdateScaleX();
-      
-      if (!CheckingDistance()) return;
+    public void Consume(float distance)
+    {
+        if (!canMove || distance <= 0) return;
+        RemainingDistance = Mathf.Max(0, RemainingDistance - distance);
+        ApplyAppearance();
+    }
 
-      OnPaintDecalPrefabOnDestroy?.Invoke(paintDecalPrefab);
-      Destroy(gameObject);
-   }
-  
-  private bool CheckingDistance()
-  {
-   
-      float distanceToEnd = Vector3.Distance(transform.position, endPos);
-      return distanceToEnd <= 0.1f;
-  }
+    private void ApplyAppearance()
+    {
+        float fadeFraction = Settings != null ? Settings.PaintFadeFraction : 0.25f;
+        float fullness = Mathf.Clamp01(RemainingDistance / Mathf.Max(0.001f, totalDistance * fadeFraction));
+        float fade = Mathf.SmoothStep(0, 1, fullness);
+        paintDecalPrefab.cwPaintDecal2D.Opacity = initialOpacity * fade;
+        float spread = Settings != null ? Settings.PaintSpreadMultiplier : 1.15f;
+        paintDecalPrefab.cwPaintDecal2D.Scale = new Vector3(initialScale.x * Mathf.Lerp(0.65f, spread, fade),
+            initialScale.y, initialScale.z);
+    }
 
-   public void DisablePaint()
-   {
-       canMove = false;
-       transform.parent = null;
-       paintDecalPrefab.cwPaintDecal2D.enabled = false;
-       // Destroy(gameObject);
-   }
+    public void DisablePaint()
+    {
+        canMove = false;
+        if (paintDecalPrefab.CwHitNearby != null) paintDecalPrefab.CwHitNearby.enabled = false;
+    }
 }

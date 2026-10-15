@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using PaintCore;
-using PaintIn2D;
 using UnityEngine;
 
 public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
@@ -10,124 +8,129 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
     public GameObject prefabToSpawn;
     public Camera mainCamera;
     public ColorSelection ColorSelection;
-
     public float positionStepX = 0.1f;
     public float positionStepY = 0.1f;
-    [SerializeField]private float initialRadius = 1f;
-
-    private bool isHolding = false;
-
     public List<Movement> paintMovements = new List<Movement>();
-
-    private int paintIndex = 0;
-    private List<Vector3> paintPositions = new List<Vector3>();
-
     public GameObject PaintDecalParent;
-
-    public bool isPaintAmountDone = false;
+    public bool isPaintAmountDone;
     public static Action OnSpawnPaintDecal;
 
-    private void OnEnable()
-    {
-        PaintAmount.OnFinishPaint += FinishPaintAmount;
-    }
+    public int PaintCount { get; private set; }
+    public float DepositedUnits { get; private set; }
+    private ImpastoPaintSurface surface;
+    private PaintAmount budget;
+    private bool isHolding;
+    private int pointerId;
+    private Vector3 previousPoint;
+    private Color strokeColor;
+    private bool hasPreviousPoint;
 
+    private void OnEnable() => PaintAmount.OnFinishPaint += FinishPaintAmount;
     private void OnDisable()
     {
         PaintAmount.OnFinishPaint -= FinishPaintAmount;
+        EndStroke();
     }
 
+    private void Start()
+    {
+        surface = ImpastoPaintSurface.Active;
+        budget = FindFirstObjectByType<PaintAmount>();
+        // The height-field renderer generates both pigment and its shadow. Disable the old independent stamp tools.
+        if (surface != null && PaintDecalParent != null) PaintDecalParent.SetActive(false);
+    }
+
+    private void OnApplicationFocus(bool focused) { if (!focused) EndStroke(); }
     private void FinishPaintAmount()
     {
         isPaintAmountDone = true;
-        PaintDecalParent.SetActive(false);
+        EndStroke();
     }
 
-    private void CalculateLifeTime()
+    private void Update()
     {
-        float lifetime = paintMovements.Count;
-        foreach (var paintMovement in paintMovements)
+        if (surface == null || !surface.IsReady || surface.IsSpreading || isPaintAmountDone || ColorSelection == null) return;
+        if (!isHolding && Helper.PointerPressed(out int id, out Vector2 screen) && !Helper.IsOverUI(id) &&
+            Helper.ScreenToPaper(mainCamera, screen, transform.position.z, out Vector3 point) && surface.Contains(point))
         {
-            paintMovement.CalculateMaxDistance(lifetime);
+            pointerId = id;
+            BeginStroke(point);
         }
-    }
-
-    void Update()
-    {
-        if(isPaintAmountDone) return;
-        
-        if (Input.GetMouseButtonDown(0))
+        if (!isHolding) return;
+        if (!Helper.ReadPointer(pointerId, out Vector2 currentScreen, out bool released))
         {
-            Vector2 mousePosition = GetWorldPositionFromMouse();
-            RaycastHit2D hit = Physics2D.Raycast(mousePosition, Vector2.zero);
-
-            if (hit.collider != null && hit.collider.CompareTag("PaintableBook"))
+            EndStroke();
+            return;
+        }
+        if (!Helper.IsOverUI(pointerId) && Helper.ScreenToPaper(mainCamera, currentScreen, transform.position.z, out Vector3 current))
+        {
+            if (hasPreviousPoint)
             {
-                if (paintPositions.Contains(mousePosition)) return;
-
-                HandleSpawn(mousePosition);
-                isHolding = true;
+                float distance = Vector3.Distance(previousPoint, current);
+                float flow = surface.settings != null ? surface.settings.PourUnitsPerSecond : 7f;
+                float dose = Mathf.Max(distance * UnitsPerMeter, released ? 0 : Time.deltaTime * flow);
+                DepositAlong(previousPoint, current, dose);
             }
+            previousPoint = current;
+            hasPreviousPoint = true;
         }
+        else hasPreviousPoint = false;
+        if (released) EndStroke();
+    }
 
-        if (Input.GetMouseButtonUp(0))
+    private float UnitsPerMeter => surface.settings != null ? surface.settings.PourUnitsPerWorldUnit : 1.8f;
+
+    public void BeginStroke(Vector3 point)
+    {
+        if (surface == null) surface = ImpastoPaintSurface.Active;
+        if (surface == null || !surface.IsReady || isPaintAmountDone || !surface.Contains(point)) return;
+        strokeColor = ColorSelection != null ? ColorSelection.GetOriginalColor() : Color.red;
+        isHolding = true;
+        hasPreviousPoint = true;
+        previousPoint = point;
+        DepositAlong(point, point, 0.6f);
+    }
+
+    public void DrawBetween(Vector3 from, Vector3 to)
+    {
+        if (surface == null) surface = ImpastoPaintSurface.Active;
+        if (surface == null || !surface.IsReady || isPaintAmountDone) return;
+        if (!isHolding) strokeColor = ColorSelection != null ? ColorSelection.GetOriginalColor() : Color.red;
+        DepositAlong(from, to, Vector3.Distance(from, to) * UnitsPerMeter);
+    }
+
+    // Holding still pours more paint; moving distributes the same stream along a continuous unsnapped path.
+    public void PourAt(Vector3 point, float units)
+    {
+        if (surface == null) surface = ImpastoPaintSurface.Active;
+        if (surface == null || !surface.IsReady || isPaintAmountDone) return;
+        if (!isHolding) strokeColor = ColorSelection != null ? ColorSelection.GetOriginalColor() : Color.red;
+        DepositAlong(point, point, units);
+    }
+
+    private void DepositAlong(Vector3 from, Vector3 to, float units)
+    {
+        if (units <= 0 || surface.IsSpreading) return;
+        if (budget == null) budget = FindFirstObjectByType<PaintAmount>();
+        float distance = Vector3.Distance(from, to);
+        int steps = Mathf.Clamp(Mathf.CeilToInt(distance / (surface.BrushRadius * 0.3f)), 1, 1024);
+        Vector2 direction = (to - from).normalized;
+        for (int i = 1; i <= steps && !isPaintAmountDone; i++)
         {
-            isHolding = false;
-            CalculateLifeTime();
-
-            foreach (var paint in paintMovements)
-            {
-                paint.paintDecalPrefab.ID = paintIndex;
-            }
-
-            paintIndex++;
-            paintMovements.Clear();
-        }
-
-        if (isHolding)
-        {
-            Vector2 mousePosition = GetWorldPositionFromMouse();
-            if (!paintPositions.Contains(mousePosition))
-            {
-                HandleSpawn(mousePosition);
-            }
+            Vector3 point = Vector3.Lerp(from, to, i / (float)steps);
+            if (!surface.Contains(point)) continue;
+            float granted = budget != null ? budget.Spend(units / steps) : units / steps;
+            if (granted <= 0) break;
+            surface.Deposit(point, strokeColor, granted, direction);
+            DepositedUnits += granted;
+            PaintCount++;
         }
     }
 
-    private void HandleSpawn(Vector3 position)
+    public void EndStroke()
     {
-        GameObject obj = Instantiate(prefabToSpawn, position, Quaternion.identity);
-        obj.GetComponent<CwPaintDecal2D>().Color = ColorSelection.GetOriginalColor();
-        PaintDecalPrefab paintDecalPrefab = obj.GetComponent<PaintDecalPrefab>();
-        paintDecalPrefab.ColorType = ColorSelection.ColorType;
-        paintDecalPrefab.Init(gridProcessor);
-        paintPositions.Add(position);
-
-        int priority = -Mathf.CeilToInt(position.y / positionStepY);
-        obj.GetComponent<CwHitNearby>().Priority = priority;
-        obj.GetComponent<CwPaintDecal2D>().Radius = initialRadius + priority * 0.005f;
-
-        paintDecalPrefab.PaintGrid.SetBlushRadius();
-        
-        Movement paintMovement = obj.GetComponent<Movement>();
-        paintMovements.Add(paintMovement);
-        paintMovement.gameObject.name = "Paint" + paintIndex;
-        OnSpawnPaintDecal?.Invoke();
-    }
-
-    private Vector3 GetWorldPositionFromMouse()
-    {
-        Vector3 mousePosition = Input.mousePosition;
-        mousePosition.z = Mathf.Abs(mainCamera.transform.position.z);
-        Vector3 worldPosition = mainCamera.ScreenToWorldPoint(mousePosition);
-        worldPosition.z = 0;
-        return SnapToGrid(worldPosition);
-    }
-
-    private Vector3 SnapToGrid(Vector3 position)
-    {
-        float snappedX = Mathf.Round(position.x / positionStepX) * positionStepX;
-        float snappedY = Mathf.Round(position.y / positionStepY) * positionStepY;
-        return new Vector3(snappedX, snappedY, position.z);
+        isHolding = false;
+        hasPreviousPoint = false;
+        paintMovements.Clear();
     }
 }

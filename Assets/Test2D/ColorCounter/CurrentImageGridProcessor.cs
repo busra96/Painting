@@ -1,66 +1,79 @@
+using System.Collections;
 using System.Collections.Generic;
+using PaintIn2D;
 using UnityEngine;
 
+[DefaultExecutionOrder(10)]
 public class CurrentImageGridProcessor : MonoBehaviour
 {
-     public SpriteRenderer spriteRenderer; // Renkleri alacağımız kağıt sprite'ı
-    private Texture2D texture;
-
-    [SerializeField]
-    private List<GridCell> gridData = new List<GridCell>(); // **Artık Inspector'da görünebilir!**
-
-    private int gridX = 43;  // X ekseninde kaç parçaya bölünecek
-    private int gridY = 125; // Y ekseninde kaç parçaya bölünecek
-
-    private float minX = -4.25f, maxX = 4.25f;
-    private float minY = -5.2f, maxY = 7.4f;
-    
+    public SpriteRenderer spriteRenderer;
+    [SerializeField] private List<GridCell> gridData = new List<GridCell>();
     public List<GridCell> GetGridData() => gridData;
+    public bool IsReady { get; private set; }
 
-    void Start()
+    private void Awake() => RebuildGrid();
+
+    private IEnumerator Start()
     {
-        if (spriteRenderer == null)
-        {
-            Debug.LogError("SpriteRenderer atanmamış!");
-            return;
-        }
-
-        // Texture2D'yi al
-        texture = spriteRenderer.sprite.texture;
-
-        if (!texture.isReadable)
-        {
-            Debug.LogError("Texture2D is not readable! Lütfen texture'ı 'Read/Write Enabled' yap.");
-            return;
-        }
-
-        ProcessGrid();
+        if (spriteRenderer == null || spriteRenderer.sprite == null) yield break;
+        var model = spriteRenderer.GetComponent<CwPaintableSprite>();
+        if (model != null && !model.IsActivated) model.Activate();
+        // The initial Game View/graphics setup can recreate render targets on the first frame.
+        yield return null;
+        var paintable = spriteRenderer.GetComponent<CwPaintableSpriteTexture>();
+        if (paintable == null || paintable.Current == null) yield break;
+        // Initialize an opaque paper after PaintIn2D activation. RGB-only paint stamps must retain its alpha.
+        RenderTexture previous = RenderTexture.active;
+        try { Graphics.Blit(spriteRenderer.sprite.texture, paintable.Current); }
+        finally { RenderTexture.active = previous; }
+        var surface = spriteRenderer.GetComponent<ImpastoPaintSurface>();
+        if (surface != null) surface.Initialize();
+        IsReady = true;
     }
 
-    void ProcessGrid()
+    public bool RebuildGrid()
     {
-        gridData.Clear(); // Önceki verileri temizle
-
-        float cellWidth = (maxX - minX) / gridX;   // X ekseninde hücre genişliği
-        float cellHeight = (maxY - minY) / gridY;  // Y ekseninde hücre yüksekliği
-
-        for (int x = 0; x < gridX; x++)
+        gridData.Clear();
+        if (spriteRenderer == null || spriteRenderer.sprite == null) return false;
+        Bounds bounds = spriteRenderer.sprite.bounds;
+        for (int x = 0; x < ImageGridProcessor.Columns; x++)
+        for (int y = 0; y < ImageGridProcessor.Rows; y++)
         {
-            for (int y = 0; y < gridY; y++)
+            Vector3 local = new Vector3(
+                Mathf.Lerp(bounds.min.x, bounds.max.x, (x + 0.5f) / ImageGridProcessor.Columns),
+                Mathf.Lerp(bounds.min.y, bounds.max.y, (y + 0.5f) / ImageGridProcessor.Rows), 0);
+            gridData.Add(new GridCell { position = spriteRenderer.transform.TransformPoint(local), color = Color.white });
+        }
+        return true;
+    }
+
+    // A single GPU readback at completion replaces thousands of estimates per brush per frame.
+    public bool CapturePaintedImage()
+    {
+        if (spriteRenderer == null || spriteRenderer.sprite == null) return false;
+        var surface = spriteRenderer.GetComponent<ImpastoPaintSurface>();
+        if (surface != null) surface.Flush();
+        CwPaintableSpriteTexture paintable = spriteRenderer.GetComponent<CwPaintableSpriteTexture>();
+        if (paintable == null || paintable.Current == null) return false;
+        if (gridData.Count == 0 && !RebuildGrid()) return false;
+        paintable.ExecuteCommands(true, true);
+        Texture2D snapshot = paintable.GetReadableCopy();
+        if (snapshot == null) return false;
+        try
+        {
+            for (int x = 0; x < ImageGridProcessor.Columns; x++)
+            for (int y = 0; y < ImageGridProcessor.Rows; y++)
             {
-                // Hücrenin dünya koordinatlarındaki merkezi
-                float worldX = minX + (x + 0.5f) * cellWidth;
-                float worldY = minY + (y + 0.5f) * cellHeight;
-                Vector2 worldPosition = new Vector2(worldX, worldY);
-
-                // En yakın tanımlı renge yuvarla
-                Color nearestColor = Color.white;
-
-                // Listeye ekle (Artık Inspector'da yuvarlanmış renkleri görebilirsin!)
-                gridData.Add(new GridCell { position = worldPosition, color = nearestColor });
+                Vector2 uv = new Vector2((x + 0.5f) / ImageGridProcessor.Columns,
+                    (y + 0.5f) / ImageGridProcessor.Rows);
+                gridData[x * ImageGridProcessor.Rows + y].color = Helper.SampleSprite(spriteRenderer, snapshot, uv);
             }
         }
-
-        Debug.Log($"Toplam {gridData.Count} hücre işlendi!");
+        finally
+        {
+            if (Application.isPlaying) Destroy(snapshot);
+            else DestroyImmediate(snapshot);
+        }
+        return true;
     }
 }

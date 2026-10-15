@@ -12,6 +12,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ebce74fa957498a409c19635c52becf8, type: 3}
   m_Name: Settings
   m_EditorClassIdentifier: 
+  PaintVolumePerUnit: 0.12
+  DepositRadius: 0.24
+  PourUnitsPerSecond: 7
+  PourUnitsPerWorldUnit: 1.8
+  FilmThickness: 0.085
+  FeatherDistance: 0.4
+  ReliefHeight: 0.075
+  WetGloss: 0.32
+  ContactShadow: 0.32
+  PaintDistancePerDab: 2.8
+  MaxPaintDistance: 14
+  PaintFadeFraction: 0.25
+  PaintSpreadMultiplier: 1.15
   MinOpacityLerpSpeed: 200
   MaxOpacityLerpSpeed: 300
   MinDensityLerpSpeed: 1

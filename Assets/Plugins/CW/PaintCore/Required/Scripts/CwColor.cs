@@ -10,7 +10,7 @@ namespace PaintCore
 	[AddComponentMenu(CwCommon.ComponentMenuPrefix + "Color")]
 	public class CwColor : MonoBehaviour
 	{
-		[SerializeField]
+		[System.Serializable]
 		private class Contribution
 		{
 			public CwColorCounter Counter;
