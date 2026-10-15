@@ -1,6 +1,7 @@
 using System;
 using PaintIn2D;
 using UnityEngine;
+using Unity.Profiling;
 
 // Pigment mass and paint volume live here. PaintIn2D remains the albedo/render-texture and scoring backend.
 [DisallowMultipleComponent]
@@ -21,6 +22,10 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
     public int Width => width;
     public int Height => height;
     public Texture HeightTexture => heightTexture;
+    public int SettlingTilesProcessedLastStep { get; private set; }
+    public int RecoloredPixelsLastFlush { get; private set; }
+    public int UploadCount { get; private set; }
+    public int AlbedoSyncCount { get; private set; }
 
     private SpriteRenderer paper;
     private CwPaintableSpriteTexture paintable;
@@ -30,16 +35,23 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
     private float[] thickness, blade, bladeSkin, contactTexture;
     private Vector3[] pigment, bladePigment, skinPigment;
     private float[] flowEdges, flowUpper, flowVolume;
+    private const int DomeSize = 65;
+    private float[] domeKernel;
     private Vector3[] flowPigment;
-    private Color32[] pixels;
     private Color[] reservoirPixels;
     private Bounds localBounds;
     private int width, height, nextRow;
     private float dx, dy, cellArea, previousBladeY;
-    private bool dirty;
-    private RectInt disturbed, changed, settlingRegion;
+    private bool dirty, albedoNeedsSync, reservoirDirty;
+    private const int TileSize = 32;
+    private int tilesX, tilesY, settlingCursor;
+    private byte[] settlingTicks;
+    private bool[] changedTiles;
+    private int activeSettlingTiles;
     private float settleAccumulator;
-    private int settleTicksRemaining;
+    private static readonly ProfilerMarker DepositMarker = new ProfilerMarker("Painting.Deposit");
+    private static readonly ProfilerMarker SettleMarker = new ProfilerMarker("Painting.SettleTiles");
+    private static readonly ProfilerMarker UploadMarker = new ProfilerMarker("Painting.Upload");
 
     public float UnitVolume => settings != null ? settings.PaintVolumePerUnit : 0.12f;
     public float BrushRadius => settings != null ? settings.DepositRadius : 0.24f;
@@ -65,13 +77,24 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         cellArea = dx * dy;
         thickness = new float[width * height];
         pigment = new Vector3[thickness.Length];
-        pixels = new Color32[thickness.Length];
+        tilesX = (width + TileSize - 1) / TileSize;
+        tilesY = (height + TileSize - 1) / TileSize;
+        settlingTicks = new byte[tilesX * tilesY];
+        changedTiles = new bool[settlingTicks.Length];
         blade = new float[width];
         bladeSkin = new float[width];
         flowEdges = new float[width];
         flowUpper = new float[width];
         flowVolume = new float[width];
         flowPigment = new Vector3[width];
+        domeKernel = new float[DomeSize * DomeSize];
+        for (int y = 0; y < DomeSize; y++)
+        for (int x = 0; x < DomeSize; x++)
+        {
+            float nx = x * 2.4f / (DomeSize - 1) - 1.2f, ny = y * 2.4f / (DomeSize - 1) - 1.2f;
+            float irregularity = 1 + 0.025f * Mathf.Sin(nx * 3 + ny * 4) + 0.015f * Mathf.Sin(nx * 7 - ny * 5);
+            domeKernel[y * DomeSize + x] = Mathf.Pow(Mathf.Max(0, 1 - (nx * nx + ny * ny) * irregularity), 1.5f);
+        }
         contactTexture = new float[thickness.Length];
         for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++)
@@ -91,6 +114,7 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         originalMaterial = paper.sharedMaterial;
         paintMaterial = new Material(paintShader != null ? paintShader : Shader.Find("Painting/Impasto Paper")) { name = "Wet paint and canvas" };
         paintMaterial.SetTexture("_HeightTex", heightTexture);
+        paintMaterial.SetTexture("_PigmentTex", colorTexture);
         paintMaterial.SetTexture("_ReservoirTex", reservoirTexture);
         paintMaterial.SetVector("_PaperSize", new Vector4(paper.bounds.size.x, paper.bounds.size.y, dx, dy));
         paintMaterial.SetFloat("_Relief", settings != null ? settings.ReliefHeight : 0.075f);
@@ -98,9 +122,11 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         paintMaterial.SetFloat("_ShadowStrength", settings != null ? settings.ContactShadow : 0.32f);
         paper.sharedMaterial = paintMaterial;
         IsReady = true;
-        changed = new RectInt(0, 0, width, height);
+        IncludeChanged(0, 0, width - 1, height - 1);
         dirty = true;
+        reservoirDirty = true;
         Flush();
+        SyncAlbedo();
     }
 
     public bool Contains(Vector3 world)
@@ -121,120 +147,133 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
     public void Deposit(Vector3 world, Color color, float units, Vector2 direction)
     {
         if (!IsReady || IsSpreading || units <= 0 || !Contains(world)) return;
-        Vector2 center = GridPoint(world);
-        float radius = BrushRadius;
-        float rx = radius / dx, ry = radius / dy;
-        int x0 = Mathf.Max(0, Mathf.FloorToInt(center.x - rx * 1.2f));
-        int x1 = Mathf.Min(width - 1, Mathf.CeilToInt(center.x + rx * 1.2f));
-        int y0 = Mathf.Max(0, Mathf.FloorToInt(center.y - ry * 1.2f));
-        int y1 = Mathf.Min(height - 1, Mathf.CeilToInt(center.y + ry * 1.2f));
-        float weight = 0;
-        for (int y = y0; y <= y1; y++)
-        for (int x = x0; x <= x1; x++) weight += Dome(x, y, center, rx, ry);
-        if (weight <= 0) return;
-        float volume = units * UnitVolume;
-        float scale = volume / (weight * cellArea);
-        Vector3 density = Absorption(color);
-        for (int y = y0; y <= y1; y++)
-        for (int x = x0; x <= x1; x++)
+        using (DepositMarker.Auto())
         {
-            float amount = Dome(x, y, center, rx, ry) * scale;
-            int index = y * width + x;
-            thickness[index] += amount;
-            pigment[index] += density * amount;
+            Vector2 center = GridPoint(world);
+            float radius = BrushRadius;
+            float rx = radius / dx, ry = radius / dy;
+            int x0 = Mathf.Max(0, Mathf.FloorToInt(center.x - rx * 1.2f));
+            int x1 = Mathf.Min(width - 1, Mathf.CeilToInt(center.x + rx * 1.2f));
+            int y0 = Mathf.Max(0, Mathf.FloorToInt(center.y - ry * 1.2f));
+            int y1 = Mathf.Min(height - 1, Mathf.CeilToInt(center.y + ry * 1.2f));
+            float weight = 0;
+            for (int y = y0; y <= y1; y++)
+            for (int x = x0; x <= x1; x++) weight += Dome(x, y, center, rx, ry);
+            if (weight <= 0) return;
+            float volume = units * UnitVolume;
+            float scale = volume / (weight * cellArea);
+            Vector3 density = Absorption(color);
+            for (int y = y0; y <= y1; y++)
+            for (int x = x0; x <= x1; x++)
+            {
+                float amount = Dome(x, y, center, rx, ry) * scale;
+                int index = y * width + x;
+                thickness[index] += amount;
+                pigment[index] += density * amount;
+            }
+            DepositedVolume += volume;
+            PaperVolume += volume;
+            ActivateSettling(x0, y0, x1, y1);
+            IncludeChanged(x0, y0, x1, y1);
+            dirty = true;
         }
-        DepositedVolume += volume;
-        PaperVolume += volume;
-        IncludeDisturbed(x0, y0, x1, y1);
-        if (settleTicksRemaining <= 0) { settlingRegion = default; settleAccumulator = 0; }
-        settlingRegion = Union(settlingRegion, disturbed);
-        settleTicksRemaining = 18;
-        IncludeChanged(x0, y0, x1, y1);
-        dirty = true;
     }
 
     private float Dome(int x, int y, Vector2 center, float rx, float ry)
     {
         float nx = (x - center.x) / rx, ny = (y - center.y) / ry;
-        float irregularity = 1f + 0.025f * Mathf.Sin(nx * 3f + ny * 4f) + 0.015f * Mathf.Sin(nx * 7f - ny * 5f);
-        return Mathf.Pow(Mathf.Max(0, 1 - (nx * nx + ny * ny) * irregularity), 1.5f);
+        float u = (nx + 1.2f) * ((DomeSize - 1) / 2.4f), v = (ny + 1.2f) * ((DomeSize - 1) / 2.4f);
+        if (u < 0 || v < 0 || u >= DomeSize - 1 || v >= DomeSize - 1) return 0;
+        int ix = (int)u, iy = (int)v, index = iy * DomeSize + ix;
+        float fx = u - ix, fy = v - iy;
+        float a = domeKernel[index] + (domeKernel[index + 1] - domeKernel[index]) * fx;
+        float b = domeKernel[index + DomeSize] + (domeKernel[index + DomeSize + 1] - domeKernel[index + DomeSize]) * fx;
+        return a + (b - a) * fy;
     }
 
-    private void IncludeDisturbed(int x0, int y0, int x1, int y1)
+    private void ActivateSettling(int x0, int y0, int x1, int y1)
     {
-        if (disturbed.width == 0) disturbed = new RectInt(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
-        else disturbed = new RectInt(Mathf.Min(x0, disturbed.xMin), Mathf.Min(y0, disturbed.yMin),
-            Mathf.Max(x1 + 1, disturbed.xMax) - Mathf.Min(x0, disturbed.xMin),
-            Mathf.Max(y1 + 1, disturbed.yMax) - Mathf.Min(y0, disturbed.yMin));
+        for (int y = Mathf.Max(0, y0 - 3) / TileSize; y <= Mathf.Min(height - 1, y1 + 3) / TileSize; y++)
+        for (int x = Mathf.Max(0, x0 - 3) / TileSize; x <= Mathf.Min(width - 1, x1 + 3) / TileSize; x++)
+        {
+            int tile = y * tilesX + x;
+            if (settlingTicks[tile] == 0) activeSettlingTiles++;
+            settlingTicks[tile] = 18;
+        }
     }
 
     private void IncludeChanged(int x0, int y0, int x1, int y1)
     {
-        if (changed.width == 0) changed = new RectInt(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
-        else changed = new RectInt(Mathf.Min(x0, changed.xMin), Mathf.Min(y0, changed.yMin),
-            Mathf.Max(x1 + 1, changed.xMax) - Mathf.Min(x0, changed.xMin),
-            Mathf.Max(y1 + 1, changed.yMax) - Mathf.Min(y0, changed.yMin));
-    }
-
-    private static RectInt Union(RectInt a, RectInt b)
-    {
-        if (a.width == 0) return b;
-        if (b.width == 0) return a;
-        int x = Mathf.Min(a.xMin, b.xMin), y = Mathf.Min(a.yMin, b.yMin);
-        return new RectInt(x, y, Mathf.Max(a.xMax, b.xMax) - x, Mathf.Max(a.yMax, b.yMax) - y);
+        for (int y = y0 / TileSize; y <= y1 / TileSize; y++)
+        for (int x = x0 / TileSize; x <= x1 / TileSize; x++) changedTiles[y * tilesX + x] = true;
     }
 
     // A yield threshold keeps thick acrylic in rounded heaps instead of diffusing it like water.
-    private void SettleHeaps()
+    private void SettleTile(int tile)
     {
-        if (disturbed.width == 0) return;
-        int x0 = Mathf.Max(0, disturbed.xMin - 3), x1 = Mathf.Min(width - 1, disturbed.xMax + 3);
-        int y0 = Mathf.Max(0, disturbed.yMin - 3), y1 = Mathf.Min(height - 1, disturbed.yMax + 3);
-        IncludeChanged(x0, y0, x1, y1);
+        int x0 = tile % tilesX * TileSize, y0 = tile / tilesX * TileSize;
+        int x1 = Mathf.Min(width, x0 + TileSize), y1 = Mathf.Min(height, y0 + TileSize);
+        bool moved = false;
         for (int pass = 0; pass < 3; pass++)
         for (int y = y0; y < y1; y++)
         for (int x = x0; x < x1; x++)
         {
             int index = y * width + x;
-            LevelPair(index, index + 1);
-            LevelPair(index, index + width);
+            if (x + 1 < width) moved |= LevelPair(index, index + 1);
+            if (y + 1 < height) moved |= LevelPair(index, index + width);
         }
-        settlingRegion = new RectInt(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
-        disturbed = default;
-    }
-
-    public void AdvanceSettling(float deltaTime)
-    {
-        if (!IsReady || IsSpreading || settleTicksRemaining <= 0 || deltaTime <= 0) return;
-        settleAccumulator += deltaTime;
-        int ticks = Mathf.Min(settleTicksRemaining, Mathf.FloorToInt((settleAccumulator + 0.000001f) * 60));
-        settleAccumulator -= ticks / 60f;
-        for (int tick = 0; tick < ticks; tick++)
+        if (moved)
         {
-            disturbed = Union(disturbed, settlingRegion);
-            SettleHeaps();
-            settleTicksRemaining--;
+            IncludeChanged(x0, y0, Mathf.Min(width - 1, x1), Mathf.Min(height - 1, y1));
             dirty = true;
         }
-        if (settleTicksRemaining == 0) settleAccumulator = 0;
+        else settlingTicks[tile] = 1;
     }
 
-    private void LevelPair(int a, int b)
+    public void AdvanceSettling(float deltaTime, int tileBudget = int.MaxValue)
+    {
+        SettlingTilesProcessedLastStep = 0;
+        if (!IsReady || IsSpreading || activeSettlingTiles == 0 || deltaTime <= 0) return;
+        using (SettleMarker.Auto())
+        {
+            settleAccumulator += deltaTime;
+            // Keep pointer input responsive even after a slow editor/GPU frame. Unfinished work resumes next frame.
+            if (tileBudget != int.MaxValue) settleAccumulator = Mathf.Min(settleAccumulator, 0.05f);
+            while (settleAccumulator + 0.000001f >= 1f / 60 && activeSettlingTiles > 0)
+            {
+                for (; settlingCursor < settlingTicks.Length; settlingCursor++)
+                {
+                    if (settlingTicks[settlingCursor] == 0) continue;
+                    if (SettlingTilesProcessedLastStep >= tileBudget) return;
+                    SettleTile(settlingCursor);
+                    if (--settlingTicks[settlingCursor] == 0) activeSettlingTiles--;
+                    SettlingTilesProcessedLastStep++;
+                }
+                settlingCursor = 0;
+                settleAccumulator -= 1f / 60;
+            }
+            if (activeSettlingTiles == 0) settleAccumulator = 0;
+        }
+    }
+
+    private bool LevelPair(int a, int b)
     {
         float difference = thickness[a] - thickness[b];
-        if (Mathf.Abs(difference) < 0.18f || Mathf.Max(thickness[a], thickness[b]) < 0.9f) return;
+        if (Mathf.Abs(difference) < 0.18f || Mathf.Max(thickness[a], thickness[b]) < 0.9f) return false;
         int from = difference > 0 ? a : b, to = difference > 0 ? b : a;
         float amount = Mathf.Min(thickness[from] * 0.12f, (Mathf.Abs(difference) - 0.18f) * 0.1f);
         Vector3 mass = pigment[from] * (amount / Mathf.Max(thickness[from], 0.000001f));
         thickness[from] -= amount; thickness[to] += amount;
         pigment[from] -= mass; pigment[to] += mass;
+        return true;
     }
 
     public void BeginSpread(float worldY)
     {
         if (!IsReady) return;
         Flush();
-        settleTicksRemaining = 0; settleAccumulator = 0;
+        Array.Clear(settlingTicks, 0, settlingTicks.Length);
+        activeSettlingTiles = settlingCursor = 0; settleAccumulator = 0;
         IsSpreading = true;
         previousBladeY = worldY;
         nextRow = height - 1;
@@ -257,6 +296,7 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
 
     private void SweepRow(int y)
     {
+        reservoirDirty = true;
         IncludeChanged(0, y, width - 1, y);
         const float pickup = 0.96f;
         float ribbons = Ribbons, film = Film, variation = Variation;
@@ -382,40 +422,67 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
     public void Flush()
     {
         if (!IsReady || !dirty) return;
-        // Recompute expensive pigment absorption only where the nozzle or blade changed the surface.
-        for (int y = changed.yMin; y < changed.yMax; y++)
-        for (int x = changed.xMin; x < changed.xMax; x++)
+        using (UploadMarker.Auto())
         {
-            int i = y * width + x;
-            float h = thickness[i];
-            if (h < 0.000001f) { pixels[i] = new Color32(255, 255, 255, 255); continue; }
-            Vector3 density = pigment[i] / h;
-            Color color = PigmentColor(density);
-            float coverage = 1 - Mathf.Exp(-h * 65f);
-            pixels[i] = Color.Lerp(Color.white, color, coverage);
+            RecoloredPixelsLastFlush = 0;
+            var pixels = colorTexture.GetPixelData<Color32>(0);
+            var heights = heightTexture.GetPixelData<float>(0);
+            // Recompute absorption only in changed tiles, including when deposits are far apart.
+            for (int tile = 0; tile < changedTiles.Length; tile++)
+            {
+                if (!changedTiles[tile]) continue;
+                changedTiles[tile] = false;
+                int x0 = tile % tilesX * TileSize, y0 = tile / tilesX * TileSize;
+                int x1 = Mathf.Min(width, x0 + TileSize), y1 = Mathf.Min(height, y0 + TileSize);
+                RecoloredPixelsLastFlush += (x1 - x0) * (y1 - y0);
+                for (int y = y0; y < y1; y++)
+                for (int x = x0; x < x1; x++)
+                {
+                    int i = y * width + x;
+                    float h = thickness[i];
+                    heights[i] = h;
+                    if (h < 0.000001f) { pixels[i] = new Color32(255, 255, 255, 255); continue; }
+                    Vector3 density = pigment[i] / h;
+                    Color color = PigmentColor(density);
+                    float coverage = 1 - Mathf.Exp(-h * 65f);
+                    pixels[i] = Color.Lerp(Color.white, color, coverage);
+                }
+            }
+            // Write straight into Texture2D backing storage; avoid copying the full managed arrays each frame.
+            colorTexture.Apply(false);
+            heightTexture.Apply(false);
+            UploadCount++;
+            if (reservoirDirty)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    float carried = blade[x] + bladeSkin[x];
+                    if (carried < 0.00000001f) { reservoirPixels[x] = Color.clear; continue; }
+                    Vector3 density = (bladePigment[x] + skinPigment[x]) / carried;
+                    if (bladeSkin[x] > 0.00000001f) density = Vector3.Lerp(density, skinPigment[x] / bladeSkin[x], 0.65f);
+                    Color color = PigmentColor(density).linear;
+                    color.a = Mathf.Min(4, carried / (dx * 0.12f));
+                    reservoirPixels[x] = color;
+                }
+                reservoirTexture.SetPixels(reservoirPixels);
+                reservoirTexture.Apply(false);
+                reservoirDirty = false;
+            }
+            albedoNeedsSync = true;
+            dirty = false;
         }
-        colorTexture.SetPixels32(pixels);
-        colorTexture.Apply(false);
-        heightTexture.SetPixelData(thickness, 0);
-        heightTexture.Apply(false);
-        for (int x = 0; x < width; x++)
-        {
-            float carried = blade[x] + bladeSkin[x];
-            if (carried < 0.00000001f) { reservoirPixels[x] = Color.clear; continue; }
-            Vector3 density = (bladePigment[x] + skinPigment[x]) / carried;
-            if (bladeSkin[x] > 0.00000001f) density = Vector3.Lerp(density, skinPigment[x] / bladeSkin[x], 0.65f);
-            Color color = PigmentColor(density).linear;
-            color.a = Mathf.Min(4, carried / (dx * 0.12f));
-            reservoirPixels[x] = color;
-        }
-        reservoirTexture.SetPixels(reservoirPixels);
-        reservoirTexture.Apply(false);
-        // Keep a clean albedo in the package's paintable texture. Shading never contaminates the score.
+    }
+
+    // The package texture is needed for result readback, not as an extra full-page blit on every pointer frame.
+    public void SyncAlbedo()
+    {
+        Flush();
+        if (!IsReady || !albedoNeedsSync) return;
         RenderTexture previous = RenderTexture.active;
         try { Graphics.Blit(colorTexture, paintable.Current); }
         finally { RenderTexture.active = previous; }
-        dirty = false;
-        changed = default;
+        albedoNeedsSync = false;
+        AlbedoSyncCount++;
     }
 
     public float SampleThickness(Vector3 world)
@@ -464,12 +531,12 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         Array.Clear(skinPigment, 0, skinPigment.Length);
         DepositedVolume = PaperVolume = BladeVolume = 0;
         IsSpreading = false;
-        disturbed = default;
-        settlingRegion = default;
-        settleTicksRemaining = 0; settleAccumulator = 0;
-        changed = new RectInt(0, 0, width, height);
+        Array.Clear(settlingTicks, 0, settlingTicks.Length);
+        activeSettlingTiles = settlingCursor = 0; settleAccumulator = 0;
+        IncludeChanged(0, 0, width - 1, height - 1);
         paintMaterial.SetFloat("_BladeVisible", 0);
         dirty = true;
+        reservoirDirty = true;
         Flush();
     }
 
@@ -504,7 +571,7 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
 
     private void LateUpdate()
     {
-        AdvanceSettling(Time.deltaTime);
+        AdvanceSettling(Time.deltaTime, 24);
         Flush();
     }
 

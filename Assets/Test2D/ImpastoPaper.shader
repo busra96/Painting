@@ -3,6 +3,7 @@ Shader "Painting/Impasto Paper"
     Properties
     {
         [PerRendererData] _MainTex ("Pigment", 2D) = "white" {}
+        _PigmentTex ("Live pigment", 2D) = "white" {}
         _HeightTex ("Paint thickness", 2D) = "black" {}
         _ReservoirTex ("Paint on blade", 2D) = "black" {}
         _Color ("Tint", Color) = (1,1,1,1)
@@ -24,7 +25,7 @@ Shader "Painting/Impasto Paper"
             #pragma fragment frag
             #pragma target 3.0
             #include "UnityCG.cginc"
-            sampler2D _MainTex, _HeightTex, _ReservoirTex;
+            sampler2D _PigmentTex, _HeightTex, _ReservoirTex;
             float4 _HeightTex_TexelSize, _Color, _PaperSize;
             float _Relief, _Gloss, _ShadowStrength, _BladeY, _BladeVisible;
             struct appdata { float4 vertex:POSITION; float2 uv:TEXCOORD0; float4 color:COLOR; };
@@ -56,7 +57,7 @@ Shader "Painting/Impasto Paper"
                 float3 n=normalize(float3(-gx,-gy,1));
                 float3 light=normalize(float3(-0.5,0.65,0.7));
                 float3 halfway=normalize(light+float3(0,0,1));
-                float4 albedo=tex2D(_MainTex,uv)*i.color;
+                float4 albedo=tex2D(_PigmentTex,uv)*i.color;
                 float m=meniscus(uv);
                 float3 reservoir=tex2D(_ReservoirTex,float2(uv.x,0.5)).rgb;
                 albedo.rgb=lerp(albedo.rgb,reservoir,saturate(m*5));

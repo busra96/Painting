@@ -80,6 +80,7 @@ public static class PaintingMechanicChecks
                 CheckVolume();
                 CheckAmountAndStepSize();
                 CheckNaturalTransport();
+                CheckDrawingWork();
                 CheckLoadedBlade();
                 CaptureVolumeResponse();
                 CheckScoring();
@@ -341,6 +342,33 @@ public static class PaintingMechanicChecks
             "A densely loaded full-width blade conserves volume");
         Check(Vector3.Distance(mass, surface.MeasurePigmentMass()) < 0.0003f,
             "A densely loaded full-width blade conserves pigment mass");
+    }
+
+    private static void CheckDrawingWork()
+    {
+        surface.ClearPaint();
+        int syncs = surface.AlbedoSyncCount;
+        surface.Deposit(new Vector3(-3.3f, 6, 0), Color.blue, 1, Vector2.zero);
+        surface.Deposit(new Vector3(3.3f, -4, 0), Color.red, 1, Vector2.zero);
+        Vector3 mass = surface.MeasurePigmentMass();
+        surface.Flush();
+        Check(surface.RecoloredPixelsLastFlush < surface.Width * surface.Height / 10,
+            "Separated deposits update small tiles instead of the empty space between them");
+        Check(surface.AlbedoSyncCount == syncs, "Drawing does not blit the full page into the scoring texture");
+        surface.AdvanceSettling(0.5f, 4);
+        Check(surface.SettlingTilesProcessedLastStep <= 4, "A slow frame cannot exceed the requested settling work budget");
+        for (int i = 0; i < 60; i++) surface.AdvanceSettling(1f / 60, 24);
+        surface.Flush();
+        Check(Math.Abs(surface.MeasureVolume() - surface.DepositedVolume) < 0.0001,
+            "Deferred local settling preserves paint volume");
+        Check(Vector3.Distance(mass, surface.MeasurePigmentMass()) < 0.0001f,
+            "Deferred local settling preserves pigment channels");
+        int uploads = surface.UploadCount;
+        surface.AdvanceSettling(1f / 60, 24);
+        surface.Flush(); surface.Flush();
+        Check(surface.UploadCount == uploads, "Resting paint performs no texture uploads");
+        Check(spawner.gridProcessor.CapturePaintedImage() && surface.AlbedoSyncCount == syncs + 1,
+            "Scoring synchronizes the latest pigment image on demand");
     }
 
     private static void CaptureVolumeResponse()

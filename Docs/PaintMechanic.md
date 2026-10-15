@@ -14,13 +14,13 @@ Spatula, geçtiği her satırı bir kez işler. Aldığı boya temas yüzeyindek
 
 Spatulanın bıraktığı tabaka hem yerel yüke hem temas dokusuna bağlıdır. İzler yol boyunca hafifçe kıvrılıp değişir; sabit bir tarak deseni tekrarlanmaz. Miktar azaldıkça boya incelir ve düzensiz ince izler halinde tükenir. Sayfa bittiğinde kalan boya haznede kalır. Hızlı ve yavaş sürüklemelerde taşınan miktar aynıdır; hareketsiz spatula boya harcamaz.
 
-Yığınların gevşemesi 60 Hz sabit simülasyon adımlarıyla ilerler. Render texture güncellemesi ve puan için görüntü okuma fiziği ilerletmez. Böylece aynı geçen süre farklı kare hızlarında aynı şekli üretir.
+Yığınların gevşemesi 60 Hz simülasyon adımlarıyla, 32×32 hücrelik yerel bölgelerde ilerler. Her bölgenin kendi kalan süresi vardır; yeni boya eski çizginin tamamını yeniden etkinleştirmez. Dengeye ulaşmış bölgeler hemen uykuya geçer. Normal kare güncellemesinde en fazla 24 bölge işlenir; fazla iş sonraki kareye bırakılır ve gecikme birikimi sınırlanır. Ağır yükte gevşeme biraz daha geç tamamlanabilir; işaretçi girişini bloke etmez. Render texture güncellemesi ve puan için görüntü okuma fiziği ilerletmez.
 
 Pigment karışımı doğrusal RGB ortalaması yerine ışık soğurması üzerinden hesaplanır. Bu, üst üste taşınan farklı boyaların daha doğal koyulaşmasını sağlar.
 
 `ImpastoPaper.shader`, gerçek kalınlık alanından yüzey normalini, ıslak parlamayı ve yakın çevre gölgesini hesaplar. Spatulanın önündeki birikinti de aynı hazneden beslenir. Eski bağımsız siyah gölge damgaları ana sahnede kullanılmaz. `SteelSpatula.shader` metal bıçak görünümünü sağlar.
 
-Temiz renk görüntüsü CW'nin `CwPaintableSpriteTexture.Current` render texture'ına aktarılır. Eşleşme puanı bu görüntüden okunur; aydınlatma, kağıdın sıcak tonu, gölge ve parlama puanı etkilemez.
+Canlı çizim `_PigmentTex` üzerinden gösterilir. Temiz renk görüntüsü yalnızca sonuç okunacağı zaman `SyncAlbedo()` ile CW'nin `CwPaintableSpriteTexture.Current` render texture'ına aktarılır. Eşleşme puanı bu görüntüden okunur; aydınlatma, kağıdın sıcak tonu, gölge ve parlama puanı etkilemez.
 
 Bu model kıvamlı akrilik boya için bir yükseklik alanı yaklaşımıdır. Üç boyutlu sıvı parçacıkları, taşan damlalar veya kuruma kimyası simüle edilmez.
 
@@ -43,7 +43,7 @@ Bu model kıvamlı akrilik boya için bir yükseklik alanı yaklaşımıdır. Ü
 | WetGloss | Islak yüzey parlaması |
 | ContactShadow | Kalınlıktan üretilen yakın gölge |
 
-Kağıt üzerindeki `ImpastoPaintSurface.resolution` ana sahnede 512'dir. Renk hesabı yalnızca değişen bölgelerde yapılır; döküş başına GameObject üretilmez. Shader referansları sahneye kaydedilmiştir.
+Kağıt üzerindeki `ImpastoPaintSurface.resolution` ana sahnede 512'dir. Renk hesabı yalnızca değişen küçük bölgelerde yapılır; birbirinden uzak iki boya arasındaki boş alan taranmaz. Texture CPU belleğine doğrudan yazılır; her karede tüm managed diziyi kopyalamak gerekmez. Boya haznesinin texture'ı yalnızca hazne değiştiğinde güncellenir. Döküş şekli önceden hesaplanan tablodan örneklenir, her hücrede yeniden sinüs ve üs hesabı yapılmaz. Her döküş yine verilen hacme normalize edilir. Döküş başına GameObject üretilmez. Shader referansları sahneye kaydedilmiştir.
 
 `Legacy decal scenes` altındaki ayarlar eski test sahnelerinin `Movement`/decal davranışı içindir.
 
@@ -56,3 +56,18 @@ Kontroller hacim ve üç pigment kanalının korunmasını, miktar/alan ilişkis
 Doğrulanan editör: Unity 6000.3.8f1. UI metin sarma API'si için Unity 2022/TMP 3 ve Unity 6 arasında derleme koşulu bulunur; yerel proje/paket yükseltmeleri mekanik değişikliklerinin parçası değildir.
 
 Yoğun boya kontrolü, 16 büyük boya yığınını tam genişlikte sürerken CPU simülasyon ve texture gönderim sürelerini ayrı raporlar. Bu ölçüm GPU kare süresini veya belirli bir cihazda FPS garantisini ifade etmez.
+
+## Çizim performansı
+
+**Tools → Painting → Profile Drawing Performance** ana sahnede çalışır. Batch giriş noktası: `PaintingPerformanceChecks.RunBatch`. Test, 120 kare boyunca kağıdı dolaşan uzun bir çizgi çizer, uzak iki köşeye dönüşümlü boya koyar ve 720×1280 render örneği alır. Döküş, gevşeme ve texture gönderimi ayrı ölçülür. Çizim döngüsünde managed bellek tahsisi ve hacim korunumu da kontrol edilir.
+
+Aynı makinede Unity 6000.3.8f1 ile ölçülen ortalama CPU süreleri:
+
+| Senaryo | Önce | Sonra |
+| --- | --- | --- |
+| Uzun çizgi: döküş | 1,38 ms | 0,54 ms |
+| Uzun çizgi: gevşeme | 22,87 ms | 0,66 ms |
+| Uzun çizgi: renk/texture | 10,39 ms | 1,00 ms |
+| Uzak köşelerde boya: toplam | 46,13 ms | 1,57 ms |
+
+Bunlar editör içindeki boya işlemlerinin ölçümüdür; oyunun tüm kare süresi veya cihazlar arası FPS garantisi değildir. Testlerdeki çözünürlük 512 olarak korunmuştur. Uzun çizgi döngüsünde 0 byte managed tahsis ölçülmüştür. Unity Profiler'da `Painting.Deposit`, `Painting.SettleTiles` ve `Painting.Upload` örnekleri ayrı izlenebilir.

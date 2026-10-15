@@ -52,7 +52,7 @@ public class CurrentImageGridProcessor : MonoBehaviour
     {
         if (spriteRenderer == null || spriteRenderer.sprite == null) return false;
         var surface = spriteRenderer.GetComponent<ImpastoPaintSurface>();
-        if (surface != null) surface.Flush();
+        if (surface != null) surface.SyncAlbedo();
         CwPaintableSpriteTexture paintable = spriteRenderer.GetComponent<CwPaintableSpriteTexture>();
         if (paintable == null || paintable.Current == null) return false;
         if (gridData.Count == 0 && !RebuildGrid()) return false;
