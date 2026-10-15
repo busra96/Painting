@@ -18,6 +18,9 @@ MonoBehaviour:
   PourUnitsPerWorldUnit: 1.8
   FilmThickness: 0.085
   FeatherDistance: 0.4
+  LateralFlow: 0.012
+  ColorRibbons: 0.68
+  SurfaceVariation: 0.32
   ReliefHeight: 0.075
   WetGloss: 0.32
   ContactShadow: 0.32

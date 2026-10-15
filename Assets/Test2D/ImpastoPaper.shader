@@ -38,7 +38,8 @@ Shader "Painting/Impasto Paper"
             {
                 float volume=tex2D(_ReservoirTex,float2(uv.x,0.5)).a;
                 float d=(uv.y-_BladeY)*_PaperSize.y;
-                return _BladeVisible*min(volume,2.8)*exp(-pow((d+0.025)/0.07,2));
+                float radius=0.04+min(sqrt(volume),2)*0.018;
+                return _BladeVisible*min(volume,2.8)*exp(-pow((d+0.025)/radius,2));
             }
             float heightAt(float2 uv)
             {
@@ -61,8 +62,11 @@ Shader "Painting/Impasto Paper"
                 albedo.rgb=lerp(albedo.rgb,reservoir,saturate(m*5));
                 float painted=smoothstep(0.002,0.025,h);
                 float diffuse=0.63+0.48*saturate(dot(n,light));
-                float broad=pow(saturate(dot(n,halfway)),18)*0.12;
-                float sheen=pow(saturate(dot(n,halfway)),90)*_Gloss;
+                float wetness=smoothstep(0.015,0.35,h);
+                float broad=pow(saturate(dot(n,halfway)),lerp(14,24,wetness))*0.10;
+                float sheen=pow(saturate(dot(n,halfway)),lerp(50,95,wetness))*_Gloss;
+                float3 softbox=normalize(float3(0.09,0.13,1));
+                float reflection=pow(saturate(dot(n,softbox)),80)*_Gloss*0.12;
                 float shadow=0;
                 [unroll] for(int k=1;k<=5;k++)
                 {
@@ -79,7 +83,7 @@ Shader "Painting/Impasto Paper"
                 base*=1-shadow*_ShadowStrength;
                 float bladeDistance=(uv.y-_BladeY)*_PaperSize.y;
                 base*=1-_BladeVisible*0.18*exp(-pow((bladeDistance+0.045)/0.08,2));
-                base+=(broad+sheen)*painted;
+                base+=(broad+sheen+reflection)*painted;
                 return float4(max(base,0),albedo.a);
             }
             ENDCG

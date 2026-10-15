@@ -27,8 +27,10 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
     private Material originalMaterial, paintMaterial, bladeMaterial;
     private Texture2D colorTexture, heightTexture, reservoirTexture;
     private Sprite bladeSprite;
-    private float[] thickness, blade, bladeProfile;
-    private Vector3[] pigment, bladePigment;
+    private float[] thickness, blade, bladeSkin, contactTexture;
+    private Vector3[] pigment, bladePigment, skinPigment;
+    private float[] flowEdges, flowUpper, flowVolume;
+    private Vector3[] flowPigment;
     private Color32[] pixels;
     private Color[] reservoirPixels;
     private Bounds localBounds;
@@ -36,13 +38,16 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
     private float dx, dy, cellArea, previousBladeY;
     private bool dirty;
     private RectInt disturbed, changed, settlingRegion;
-    private float settleRemaining, settleAccumulator;
-    private int settlePasses = 3;
+    private float settleAccumulator;
+    private int settleTicksRemaining;
 
     public float UnitVolume => settings != null ? settings.PaintVolumePerUnit : 0.12f;
     public float BrushRadius => settings != null ? settings.DepositRadius : 0.24f;
     private float Film => settings != null ? settings.FilmThickness : 0.085f;
     private float Tail => settings != null ? settings.FeatherDistance : 0.4f;
+    private float SideFlow => settings != null ? settings.LateralFlow : 0.012f;
+    private float Ribbons => settings != null ? settings.ColorRibbons : 0.68f;
+    private float Variation => settings != null ? settings.SurfaceVariation : 0.32f;
 
     private void Awake() => Active = this;
 
@@ -62,14 +67,23 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         pigment = new Vector3[thickness.Length];
         pixels = new Color32[thickness.Length];
         blade = new float[width];
-        bladeProfile = new float[width];
+        bladeSkin = new float[width];
+        flowEdges = new float[width];
+        flowUpper = new float[width];
+        flowVolume = new float[width];
+        flowPigment = new Vector3[width];
+        contactTexture = new float[thickness.Length];
+        for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++)
         {
             float worldX = (x + 0.5f) * dx;
-            bladeProfile[x] = 1 + 0.65f * (Mathf.PerlinNoise(worldX * 14.3f, 12.7f) - 0.5f)
-                + 0.28f * (Mathf.PerlinNoise(worldX * 39.1f, 4.3f) - 0.5f);
+            float worldY = (y + 0.5f) * dy;
+            float bend = Mathf.PerlinNoise(worldX * 0.9f, worldY * 1.7f) * 0.6f;
+            contactTexture[y * width + x] = 0.85f * Mathf.PerlinNoise(worldX * 20.3f + bend, worldY * 0.75f + 12.7f)
+                + 0.15f * Mathf.PerlinNoise(worldX * 67.1f + bend, worldY * 4.3f + 4.3f);
         }
         bladePigment = new Vector3[width];
+        skinPigment = new Vector3[width];
         reservoirPixels = new Color[width];
         colorTexture = new Texture2D(width, height, TextureFormat.RGBA32, false, false) { name = "Impasto pigment", wrapMode = TextureWrapMode.Clamp };
         heightTexture = new Texture2D(width, height, TextureFormat.RFloat, false, true) { name = "Impasto thickness", wrapMode = TextureWrapMode.Clamp };
@@ -132,9 +146,9 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         DepositedVolume += volume;
         PaperVolume += volume;
         IncludeDisturbed(x0, y0, x1, y1);
-        if (settleRemaining <= 0) settlingRegion = default;
+        if (settleTicksRemaining <= 0) { settlingRegion = default; settleAccumulator = 0; }
         settlingRegion = Union(settlingRegion, disturbed);
-        settleRemaining = 0.3f;
+        settleTicksRemaining = 18;
         IncludeChanged(x0, y0, x1, y1);
         dirty = true;
     }
@@ -177,7 +191,7 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         int x0 = Mathf.Max(0, disturbed.xMin - 3), x1 = Mathf.Min(width - 1, disturbed.xMax + 3);
         int y0 = Mathf.Max(0, disturbed.yMin - 3), y1 = Mathf.Min(height - 1, disturbed.yMax + 3);
         IncludeChanged(x0, y0, x1, y1);
-        for (int pass = 0; pass < settlePasses; pass++)
+        for (int pass = 0; pass < 3; pass++)
         for (int y = y0; y < y1; y++)
         for (int x = x0; x < x1; x++)
         {
@@ -186,8 +200,23 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
             LevelPair(index, index + width);
         }
         settlingRegion = new RectInt(x0, y0, x1 - x0 + 1, y1 - y0 + 1);
-        settlePasses = 3;
         disturbed = default;
+    }
+
+    public void AdvanceSettling(float deltaTime)
+    {
+        if (!IsReady || IsSpreading || settleTicksRemaining <= 0 || deltaTime <= 0) return;
+        settleAccumulator += deltaTime;
+        int ticks = Mathf.Min(settleTicksRemaining, Mathf.FloorToInt((settleAccumulator + 0.000001f) * 60));
+        settleAccumulator -= ticks / 60f;
+        for (int tick = 0; tick < ticks; tick++)
+        {
+            disturbed = Union(disturbed, settlingRegion);
+            SettleHeaps();
+            settleTicksRemaining--;
+            dirty = true;
+        }
+        if (settleTicksRemaining == 0) settleAccumulator = 0;
     }
 
     private void LevelPair(int a, int b)
@@ -205,7 +234,7 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
     {
         if (!IsReady) return;
         Flush();
-        settleRemaining = settleAccumulator = 0;
+        settleTicksRemaining = 0; settleAccumulator = 0;
         IsSpreading = true;
         previousBladeY = worldY;
         nextRow = height - 1;
@@ -218,17 +247,19 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         if (!IsSpreading || worldY >= previousBladeY) return;
         Vector2 grid = GridPoint(new Vector3(paper.bounds.center.x, worldY, transform.position.z));
         int lastRow = Mathf.Max(0, Mathf.CeilToInt(grid.y));
+        int firstRow = nextRow;
         // Process each crossed row exactly once. Fast/slow drags transfer the same material volume.
         while (nextRow >= lastRow && nextRow >= 0) SweepRow(nextRow--);
         previousBladeY = worldY;
         UpdateBladeUniform(worldY);
-        dirty = true;
+        dirty |= nextRow != firstRow;
     }
 
     private void SweepRow(int y)
     {
         IncludeChanged(0, y, width - 1, y);
         const float pickup = 0.96f;
+        float ribbons = Ribbons, film = Film, variation = Variation;
         for (int x = 0; x < width; x++)
         {
             int i = y * width + x;
@@ -236,37 +267,102 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
             Vector3 mass = pigment[i] * pickup;
             thickness[i] -= collected; pigment[i] -= mass;
             float volume = collected * cellArea;
-            blade[x] += volume; bladePigment[x] += mass * cellArea;
+            // Fresh paint wets the contact face first. The rest stays in the deeper carried pool.
+            bladeSkin[x] += volume * ribbons;
+            skinPigment[x] += mass * (cellArea * ribbons);
+            blade[x] += volume * (1 - ribbons);
+            bladePigment[x] += mass * (cellArea * (1 - ribbons));
             PaperVolume -= volume; BladeVolume += volume;
         }
-        // Conservative lateral kneading softens column seams and produces local pigment marbling.
-        for (int x = 0; x < width - 1; x++)
-        {
-            int from = blade[x] > blade[x + 1] ? x : x + 1, to = from == x ? x + 1 : x;
-            float amount = Mathf.Abs(blade[x] - blade[x + 1]) * 0.055f;
-            Vector3 mass = bladePigment[from] * (amount / Mathf.Max(blade[from], 0.00000001f));
-            blade[from] -= amount; blade[to] += amount;
-            bladePigment[from] -= mass; bladePigment[to] += mass;
-        }
+        FlowAlongBlade();
         float tailRows = Mathf.Max(2, Tail / dy);
-        float worldY = (y + 0.5f) * dy;
         for (int x = 0; x < width; x++)
         {
-            if (blade[x] <= 0.00000001f) continue;
-            float worldX = (x + 0.5f) * dx;
-            // Uneven micro-grooves avoid a repeating comb pattern along the wet edge.
-            float comb = bladeProfile[x] + 0.025f * Mathf.Sin(worldX * 29.5f + worldY * 1.9f);
-            float target = Film * comb * cellArea;
-            // A square-root taper runs out in a finite distance, leaving thin streaks instead of an endless airbrush trail.
-            float fullness = Mathf.Sqrt(Mathf.Clamp01(blade[x] / (target * tailRows)));
-            float volume = Mathf.Min(blade[x], target * fullness);
-            Vector3 mass = bladePigment[x] * (volume / blade[x]);
-            blade[x] -= volume; bladePigment[x] -= mass;
             int i = y * width + x;
+            float carried = blade[x] + bladeSkin[x];
+            if (carried <= 0) continue;
+            float grain = contactTexture[i];
+            float load = carried / (dx * 0.12f);
+            float capacity = dx * 0.09f * (0.38f + (grain - 0.5f) * 0.12f);
+            // Excess fresh paint rolls into the pool; a little old pigment continually returns to the face.
+            if (bladeSkin[x] > capacity)
+                MovePaint(bladeSkin, skinPigment, x, blade, bladePigment, x, bladeSkin[x] - capacity);
+            float replenish = Mathf.Min(capacity, carried * 0.35f) * ribbons - bladeSkin[x];
+            if (replenish > 0)
+                MovePaint(blade, bladePigment, x, bladeSkin, skinPigment, x, replenish * 0.12f);
+            // Contact changes along the travel as well as across the blade, so ridges bend and terminate.
+            float contact = 1 + (grain - 0.5f) * variation;
+            float target = film * contact * Mathf.Lerp(0.9f, 1.2f, Mathf.Clamp01(load / 2)) * cellArea;
+            float fullness = Mathf.Sqrt(Mathf.Clamp01(carried / (target * tailRows)));
+            float wetting = Mathf.Lerp(0.45f, 1, Mathf.SmoothStep(0, 1,
+                Mathf.Clamp01(fullness * 2.2f + (grain - 0.5f) * 0.9f)));
+            float volume = Mathf.Min(carried, target * fullness * wetting);
+            float fromSkin = Mathf.Min(bladeSkin[x], volume * (0.72f + grain * 0.2f));
+            float fromPool = Mathf.Min(blade[x], volume - fromSkin);
+            fromSkin += Mathf.Min(bladeSkin[x] - fromSkin, Mathf.Max(0, volume - fromSkin - fromPool));
+            Vector3 mass = TakePaint(bladeSkin, skinPigment, x, fromSkin) + TakePaint(blade, bladePigment, x, fromPool);
+            volume = fromSkin + fromPool;
             thickness[i] += volume / cellArea;
             pigment[i] += mass / cellArea;
             PaperVolume += volume; BladeVolume -= volume;
         }
+    }
+
+    private void FlowAlongBlade()
+    {
+        // A no-flux implicit diffusion solve is positive and conservative without resolution-dependent substeps.
+        float coefficient = SideFlow * dy / (dx * dx);
+        if (coefficient <= 0) return;
+        bool flowing = false;
+        for (int x = 0; x < width - 1; x++)
+        {
+            float load = (blade[x] + bladeSkin[x] + blade[x + 1] + bladeSkin[x + 1]) / (2 * dx * 0.12f);
+            float mobility = Mathf.SmoothStep(0, 1, Mathf.Clamp01(load / 0.8f));
+            flowEdges[x] = coefficient * mobility;
+            flowing |= flowEdges[x] > 0;
+        }
+        flowEdges[width - 1] = 0;
+        if (!flowing) return;
+        SolveBladeLayer(blade, bladePigment, 1);
+        SolveBladeLayer(bladeSkin, skinPigment, 1.4f);
+    }
+
+    private void SolveBladeLayer(float[] volume, Vector3[] mass, float mobility)
+    {
+        // The same symmetric matrix transports volume and each absorption channel; no pigment is created or discarded.
+        for (int x = 0; x < width; x++)
+        {
+            float left = x > 0 ? flowEdges[x - 1] * mobility : 0;
+            float right = flowEdges[x] * mobility;
+            float inverse = 1 / (1 + left + right - (x > 0 ? left * flowUpper[x - 1] : 0));
+            flowUpper[x] = right * inverse;
+            flowVolume[x] = (volume[x] + (x > 0 ? left * flowVolume[x - 1] : 0)) * inverse;
+            flowPigment[x] = (mass[x] + (x > 0 ? left * flowPigment[x - 1] : Vector3.zero)) * inverse;
+        }
+        for (int x = width - 1; x >= 0; x--)
+        {
+            volume[x] = flowVolume[x] + (x < width - 1 ? flowUpper[x] * volume[x + 1] : 0);
+            mass[x] = flowPigment[x] + (x < width - 1 ? flowUpper[x] * mass[x + 1] : Vector3.zero);
+        }
+    }
+
+    private static void MovePaint(float[] source, Vector3[] sourceMass, int from,
+        float[] destination, Vector3[] destinationMass, int to, float amount)
+    {
+        amount = Mathf.Min(source[from], amount);
+        if (amount <= 0) return;
+        Vector3 pigmentMass = TakePaint(source, sourceMass, from, amount);
+        destination[to] += amount;
+        destinationMass[to] += pigmentMass;
+    }
+
+    private static Vector3 TakePaint(float[] volume, Vector3[] mass, int index, float amount)
+    {
+        if (amount <= 0 || volume[index] <= 0) return Vector3.zero;
+        Vector3 taken = mass[index] * Mathf.Min(1, amount / volume[index]);
+        volume[index] = Mathf.Max(0, volume[index] - amount);
+        mass[index] -= taken;
+        return taken;
     }
 
     private void UpdateBladeUniform(float worldY)
@@ -286,7 +382,6 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
     public void Flush()
     {
         if (!IsReady || !dirty) return;
-        if (!IsSpreading) SettleHeaps();
         // Recompute expensive pigment absorption only where the nozzle or blade changed the surface.
         for (int y = changed.yMin; y < changed.yMax; y++)
         for (int x = changed.xMin; x < changed.xMax; x++)
@@ -305,9 +400,12 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         heightTexture.Apply(false);
         for (int x = 0; x < width; x++)
         {
-            if (blade[x] < 0.00000001f) { reservoirPixels[x] = Color.clear; continue; }
-            Color color = PigmentColor(bladePigment[x] / blade[x]).linear;
-            color.a = Mathf.Min(4, blade[x] / (dx * 0.12f));
+            float carried = blade[x] + bladeSkin[x];
+            if (carried < 0.00000001f) { reservoirPixels[x] = Color.clear; continue; }
+            Vector3 density = (bladePigment[x] + skinPigment[x]) / carried;
+            if (bladeSkin[x] > 0.00000001f) density = Vector3.Lerp(density, skinPigment[x] / bladeSkin[x], 0.65f);
+            Color color = PigmentColor(density).linear;
+            color.a = Mathf.Min(4, carried / (dx * 0.12f));
             reservoirPixels[x] = color;
         }
         reservoirTexture.SetPixels(reservoirPixels);
@@ -332,7 +430,20 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         double total = 0;
         foreach (float h in thickness) total += h * cellArea;
         foreach (float v in blade) total += v;
+        foreach (float v in bladeSkin) total += v;
         return total;
+    }
+
+    public Vector3 MeasurePigmentMass()
+    {
+        double r = 0, g = 0, b = 0;
+        foreach (Vector3 m in pigment) { r += m.x * cellArea; g += m.y * cellArea; b += m.z * cellArea; }
+        for (int x = 0; x < width; x++)
+        {
+            Vector3 m = bladePigment[x] + skinPigment[x];
+            r += m.x; g += m.y; b += m.z;
+        }
+        return new Vector3((float)r, (float)g, (float)b);
     }
 
     public float CoveredArea(float minimumThickness = 0.015f)
@@ -348,12 +459,14 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         Array.Clear(thickness, 0, thickness.Length);
         Array.Clear(pigment, 0, pigment.Length);
         Array.Clear(blade, 0, blade.Length);
+        Array.Clear(bladeSkin, 0, bladeSkin.Length);
         Array.Clear(bladePigment, 0, bladePigment.Length);
+        Array.Clear(skinPigment, 0, skinPigment.Length);
         DepositedVolume = PaperVolume = BladeVolume = 0;
         IsSpreading = false;
         disturbed = default;
         settlingRegion = default;
-        settleRemaining = settleAccumulator = 0;
+        settleTicksRemaining = 0; settleAccumulator = 0;
         changed = new RectInt(0, 0, width, height);
         paintMaterial.SetFloat("_BladeVisible", 0);
         dirty = true;
@@ -391,20 +504,7 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (IsReady && !IsSpreading && settleRemaining > 0)
-        {
-            float step = Mathf.Min(Time.deltaTime, settleRemaining);
-            settleRemaining -= step;
-            settleAccumulator += step;
-            int ticks = Mathf.Min(4, Mathf.FloorToInt(settleAccumulator * 60));
-            if (ticks > 0)
-            {
-                settleAccumulator -= ticks / 60f;
-                disturbed = Union(disturbed, settlingRegion);
-                settlePasses = ticks * 3;
-                dirty = true;
-            }
-        }
+        AdvanceSettling(Time.deltaTime);
         Flush();
     }
 

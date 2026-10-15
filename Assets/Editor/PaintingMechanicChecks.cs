@@ -13,7 +13,7 @@ public static class PaintingMechanicChecks
 {
     private const string Key = "PaintingMechanicChecks.Running";
     private const string ScenePath = "Assets/Test2D/Scenes/Test 1.unity";
-    private static int stage, count, lastFrame;
+    private static int stage, count, lastFrame, animationFrame;
     private static double deadline;
     private static bool compared, during;
     private static UIManager ui;
@@ -50,6 +50,7 @@ public static class PaintingMechanicChecks
         if (state != PlayModeStateChange.EnteredPlayMode || !SessionState.GetBool(Key, false)) return;
         stage = count = 0;
         compared = during = false;
+        animationFrame = 1;
         deadline = EditorApplication.timeSinceStartup + 120;
         EditorApplication.update += Tick;
     }
@@ -78,11 +79,14 @@ public static class PaintingMechanicChecks
                 Check(!ShaderUtil.ShaderHasError(Shader.Find("Painting/Steel Spatula")), "Metal blade shader compiles");
                 CheckVolume();
                 CheckAmountAndStepSize();
+                CheckNaturalTransport();
+                CheckLoadedBlade();
                 CaptureVolumeResponse();
                 CheckScoring();
                 surface.ClearPaint();
                 DrawDemonstration();
                 Capture("Impasto-Before");
+                Capture("Animation/Frame-00", false);
                 ui.DoneButton.onClick.Invoke();
                 Check(surface.IsSpreading, "Done starts volume-based paint spreading");
                 Physics.SyncTransforms();
@@ -104,6 +108,8 @@ public static class PaintingMechanicChecks
             {
                 if (Time.frameCount == lastFrame) return;
                 lastFrame = Time.frameCount;
+                if (animationFrame <= 16 && drag.Progress >= animationFrame / 16f)
+                    Capture("Animation/Frame-" + (animationFrame++).ToString("D2"), false);
                 if (!during && drag.Progress > 0.46f)
                 {
                     surface.Flush();
@@ -124,6 +130,7 @@ public static class PaintingMechanicChecks
                 Check(Math.Abs(surface.MeasureVolume() - surface.DepositedVolume) < 0.0002, "Full game preserves deposited paint volume");
                 Check(comparer.LastScore >= 0 && comparer.LastScore <= 100, "Final similarity is bounded");
                 Capture("Impasto-After");
+                Capture("Animation/Frame-17", false);
                 ui.DoneButton.onClick.Invoke();
                 stage = 4;
             }
@@ -151,6 +158,7 @@ public static class PaintingMechanicChecks
         Check(surface.SampleThickness(new Vector3(-1, 5, 0)) > h1 * 2.5f, "Holding builds a raised paint mound");
         surface.Deposit(new Vector3(4.22f, 2, 0), Color.blue, 1.5f, Vector2.zero);
         Check(Math.Abs(surface.MeasureVolume() - surface.DepositedVolume) < 0.00001, "Depositing near paper edges preserves volume");
+        surface.AdvanceSettling(0.3f);
         surface.Flush();
         Check(Math.Abs(surface.MeasureVolume() - surface.DepositedVolume) < 0.00002, "Viscous leveling conserves pigment and volume");
         surface.BeginSpread(7.5f);
@@ -211,6 +219,130 @@ public static class PaintingMechanicChecks
             "Rendered albedo readback preserves the actual deposited pigment");
     }
 
+    private static void CheckNaturalTransport()
+    {
+        surface.ClearPaint();
+        Vector3 point = new Vector3(0, 5.2f, 0);
+        surface.Deposit(point, new Color(0.08f, 0.29f, 0.77f), 3, Vector2.zero);
+        float originalHeight = surface.SampleThickness(point);
+        Vector3 pigmentMass = surface.MeasurePigmentMass();
+        surface.Flush(); surface.Flush();
+        Check(Mathf.Abs(surface.SampleThickness(point) - originalHeight) < 0.000001f,
+            "Rendering and readback cannot advance paint physics");
+        surface.AdvanceSettling(0.3f);
+        Check(surface.SampleThickness(point) < originalHeight, "A fresh mound gently relaxes after pouring");
+        var settled = new float[49];
+        for (int i = 0; i < settled.Length; i++) settled[i] = surface.SampleThickness(point + new Vector3((i % 7 - 3) * 0.09f, (i / 7 - 3) * 0.09f));
+        Check(Vector3.Distance(pigmentMass, surface.MeasurePigmentMass()) < 0.0001f, "Settling preserves all pigment channels");
+        surface.ClearPaint();
+        surface.Deposit(point, new Color(0.08f, 0.29f, 0.77f), 3, Vector2.zero);
+        for (int tick = 0; tick < 18; tick++) surface.AdvanceSettling(1f / 60f);
+        float difference = 0;
+        for (int i = 0; i < settled.Length; i++) difference = Mathf.Max(difference, Mathf.Abs(settled[i] -
+            surface.SampleThickness(point + new Vector3((i % 7 - 3) * 0.09f, (i / 7 - 3) * 0.09f))));
+        Check(difference < 0.00001f, "Mound relaxation is independent of frame duration");
+
+        float originalFlow = surface.settings.LateralFlow;
+        float originalRibbons = surface.settings.ColorRibbons;
+        try
+        {
+            float wide = TransportWidth(originalFlow);
+            float narrow = TransportWidth(0);
+            Debug.Log("LATERAL RESPONSE: flowing=" + wide + " locked=" + narrow);
+            Check(wide > narrow * 1.08f, "Carried paint fans sideways under the loaded blade");
+            surface.settings.LateralFlow = originalFlow;
+            surface.settings.ColorRibbons = 0;
+            Color mixed = ColorCross();
+            surface.settings.ColorRibbons = originalRibbons;
+            Color ribbon = ColorCross();
+            Vector3 towardPink = new Vector3(0.89f - 0.08f, 0.17f - 0.29f, 0.45f - 0.77f);
+            float fresh = Vector3.Dot(new Vector3(ribbon.r - mixed.r, ribbon.g - mixed.g, ribbon.b - mixed.b), towardPink);
+            Debug.Log("RIBBON RESPONSE: fresh=" + fresh + " mixed=" + mixed + " ribbon=" + ribbon);
+            Check(fresh > 0.015f, "Fresh pigment forms a visible ribbon before mixing into the carried pool");
+            surface.SpreadTo(-5.5f);
+            surface.FinishSpread();
+            Check(Math.Abs(surface.MeasureVolume() - surface.DepositedVolume) < 0.0002,
+                "Sideways flow and two carried layers conserve volume");
+        }
+        finally
+        {
+            surface.settings.LateralFlow = originalFlow;
+            surface.settings.ColorRibbons = originalRibbons;
+        }
+    }
+
+    private static float TransportWidth(float flow)
+    {
+        surface.settings.LateralFlow = flow;
+        surface.ClearPaint();
+        surface.Deposit(new Vector3(0, 5.2f, 0), Color.blue, 1.8f, Vector2.zero);
+        Vector3 mass = surface.MeasurePigmentMass();
+        surface.BeginSpread(7.5f);
+        surface.SpreadTo(4.4f);
+        Check(Vector3.Distance(mass, surface.MeasurePigmentMass()) < 0.0001f, "Lateral transport preserves pigment mass");
+        float first = float.MaxValue, last = float.MinValue;
+        for (int i = 0; i < 300; i++)
+        {
+            float x = Mathf.Lerp(-2, 2, i / 299f);
+            if (surface.SampleThickness(new Vector3(x, 4.6f, 0)) < 0.008f) continue;
+            first = Mathf.Min(first, x); last = Mathf.Max(last, x);
+        }
+        return first <= last ? last - first : 0;
+    }
+
+    private static Color ColorCross()
+    {
+        surface.ClearPaint();
+        surface.Deposit(new Vector3(0, 5.2f, 0), new Color(0.08f, 0.29f, 0.77f), 1.8f, Vector2.zero);
+        surface.Deposit(new Vector3(0, 4.4f, 0), new Color(0.89f, 0.17f, 0.45f), 1.8f, Vector2.zero);
+        surface.BeginSpread(7.5f);
+        surface.SpreadTo(4.35f);
+        spawner.gridProcessor.CapturePaintedImage();
+        float nearest = float.MaxValue;
+        Color color = Color.clear;
+        foreach (var cell in spawner.gridProcessor.GetGridData())
+        {
+            float distance = (cell.position - new Vector2(0, 4.4f)).sqrMagnitude;
+            if (distance >= nearest) continue;
+            nearest = distance; color = cell.color;
+        }
+        return color;
+    }
+
+    private static void CheckLoadedBlade()
+    {
+        surface.ClearPaint();
+        for (int i = 0; i < 16; i++)
+            surface.Deposit(new Vector3(-3.2f + i * 0.4f, 5.2f, 0),
+                Color.Lerp(new Color(0.08f, 0.29f, 0.77f), new Color(0.89f, 0.17f, 0.45f), i / 15f), 3, Vector2.zero);
+        Vector3 mass = surface.MeasurePigmentMass();
+        surface.BeginSpread(7.5f);
+        var durations = new double[80];
+        double simulationTime = 0, textureTime = 0;
+        var timer = new System.Diagnostics.Stopwatch();
+        for (int i = 0; i < durations.Length; i++)
+        {
+            timer.Restart();
+            surface.SpreadTo(Mathf.Lerp(7.5f, -5.5f, (i + 1f) / durations.Length));
+            double simulation = timer.Elapsed.TotalMilliseconds;
+            surface.Flush();
+            timer.Stop();
+            durations[i] = timer.Elapsed.TotalMilliseconds;
+            simulationTime += simulation;
+            textureTime += durations[i] - simulation;
+        }
+        double total = 0;
+        foreach (double time in durations) total += time;
+        Array.Sort(durations);
+        Debug.Log("LOADED BLADE CPU (simulation + texture submission): mean_ms=" + total / durations.Length +
+            " p95_ms=" + durations[(int)(durations.Length * 0.95f)] + " simulation_ms=" + simulationTime / durations.Length +
+            " texture_ms=" + textureTime / durations.Length);
+        Check(Math.Abs(surface.MeasureVolume() - surface.DepositedVolume) < 0.0002,
+            "A densely loaded full-width blade conserves volume");
+        Check(Vector3.Distance(mass, surface.MeasurePigmentMass()) < 0.0003f,
+            "A densely loaded full-width blade conserves pigment mass");
+    }
+
     private static void CaptureVolumeResponse()
     {
         surface.ClearPaint();
@@ -252,7 +384,7 @@ public static class PaintingMechanicChecks
             "Continuous pouring spends fractional supply");
     }
 
-    private static void Capture(string name)
+    private static void Capture(string name, bool verify = true)
     {
         surface.Flush();
         var camera = Camera.main;
@@ -277,9 +409,10 @@ public static class PaintingMechanicChecks
             RenderTexture.active = rt;
             image.ReadPixels(new Rect(0, 0, 800, 1200), 0, 0);
             image.Apply();
-            Directory.CreateDirectory("Logs/PaintingPreview");
-            File.WriteAllBytes("Logs/PaintingPreview/" + name + ".png", image.EncodeToPNG());
-            Check(true, "Rendered visual preview: " + name);
+            string path = "Logs/PaintingPreview/" + name + ".png";
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            File.WriteAllBytes(path, image.EncodeToPNG());
+            if (verify) Check(true, "Rendered visual preview: " + name);
         }
         finally
         {

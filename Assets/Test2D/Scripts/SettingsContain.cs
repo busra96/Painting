@@ -10,6 +10,10 @@ public class SettingsContain : ScriptableObject
     [Min(0.1f)] public float PourUnitsPerWorldUnit = 1.8f;
     [Range(0.02f, 0.3f)] public float FilmThickness = 0.085f;
     [Range(0.1f, 1f)] public float FeatherDistance = 0.4f;
+    [Header("Paint carried by the blade")]
+    [Range(0, 0.03f)] public float LateralFlow = 0.012f;
+    [Range(0, 1)] public float ColorRibbons = 0.68f;
+    [Range(0, 1)] public float SurfaceVariation = 0.32f;
     [Header("Paint lighting")]
     [Range(0.01f, 0.2f)] public float ReliefHeight = 0.075f;
     [Range(0, 1)] public float WetGloss = 0.32f;

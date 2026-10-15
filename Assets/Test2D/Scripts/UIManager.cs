@@ -29,7 +29,11 @@ public class UIManager : MonoBehaviour
             statusLabel.enableAutoSizing = true;
             statusLabel.fontSizeMin = 18;
             statusLabel.fontSizeMax = statusLabel.fontSize;
+#if UNITY_6000_0_OR_NEWER
             statusLabel.textWrappingMode = TextWrappingModes.NoWrap;
+#else
+            statusLabel.enableWordWrapping = false;
+#endif
         }
         if (Spatula != null)
         {
@@ -54,7 +58,11 @@ public class UIManager : MonoBehaviour
                 buttonLabel.enableAutoSizing = true;
                 buttonLabel.fontSizeMin = 18;
                 buttonLabel.fontSizeMax = buttonLabel.fontSize;
+#if UNITY_6000_0_OR_NEWER
                 buttonLabel.textWrappingMode = TextWrappingModes.NoWrap;
+#else
+                buttonLabel.enableWordWrapping = false;
+#endif
             }
             DoneButton.onClick.AddListener(DoneButtonClicked);
         }
