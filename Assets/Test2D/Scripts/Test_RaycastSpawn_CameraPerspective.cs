@@ -13,6 +13,7 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
     public List<Movement> paintMovements = new List<Movement>();
     public GameObject PaintDecalParent;
     public bool isPaintAmountDone;
+    public PaintHistory history;
     public static Action OnSpawnPaintDecal;
 
     public int PaintCount { get; private set; }
@@ -24,6 +25,7 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
     private Vector3 previousPoint;
     private Color strokeColor;
     private bool hasPreviousPoint;
+    private bool strokeRecorded;
 
     private void OnEnable() => PaintAmount.OnFinishPaint += FinishPaintAmount;
     private void OnDisable()
@@ -119,6 +121,11 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
         {
             Vector3 point = Vector3.Lerp(from, to, i / (float)steps);
             if (!surface.Contains(point)) continue;
+            if (!strokeRecorded && (budget == null || budget.RemainingAmount > 0))
+            {
+                if (history != null) history.RecordStroke();
+                strokeRecorded = true;
+            }
             float granted = budget != null ? budget.Spend(units / steps) : units / steps;
             if (granted <= 0) break;
             surface.Deposit(point, strokeColor, granted, direction);
@@ -131,6 +138,15 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
     {
         isHolding = false;
         hasPreviousPoint = false;
+        strokeRecorded = false;
         paintMovements.Clear();
+    }
+
+    public void RestoreDrawingState(int count, float units)
+    {
+        EndStroke();
+        PaintCount = Mathf.Max(0, count);
+        DepositedUnits = Mathf.Max(0, units);
+        isPaintAmountDone = budget != null && budget.isFull;
     }
 }

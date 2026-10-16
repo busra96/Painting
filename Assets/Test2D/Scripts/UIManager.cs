@@ -12,6 +12,9 @@ public class UIManager : MonoBehaviour
     public Test_RaycastSpawn_CameraPerspective RaycastAndSpawn;
     public ColorSelection ColorSelection;
     public TMP_Text StatusLabel;
+    public Button UndoButton, ClearButton;
+    public PaintHistory PaintHistory;
+    public bool ShowPaintingHint = true;
     private enum Phase { Painting, Spreading, Evaluating, Result }
     private Phase phase;
     private PaintAmount amount;
@@ -22,6 +25,8 @@ public class UIManager : MonoBehaviour
 
     private void Start()
     {
+        if (UndoButton != null) UndoButton.onClick.AddListener(UndoPainting);
+        if (ClearButton != null) ClearButton.onClick.AddListener(ClearPainting);
         amount = FindFirstObjectByType<PaintAmount>();
         statusLabel = StatusLabel;
         if (statusLabel == null && amount != null && amount.PaintAmountSlider != null)
@@ -74,11 +79,16 @@ public class UIManager : MonoBehaviour
     {
         if (phase == Phase.Painting)
         {
+            if (UndoButton != null) UndoButton.interactable = PaintHistory != null && PaintHistory.CanUndo;
+            if (ClearButton != null) ClearButton.interactable = RaycastAndSpawn != null && RaycastAndSpawn.PaintCount > 0;
             if (DoneButton != null) DoneButton.interactable = RaycastAndSpawn != null && RaycastAndSpawn.PaintCount > 0;
             if (buttonLabel != null) buttonLabel.text = "DONE";
             if (statusLabel != null && amount != null)
+            {
+                if (!ShowPaintingHint) { statusLabel.text = ""; return; }
                 statusLabel.text = RaycastAndSpawn != null && RaycastAndSpawn.PaintCount == 0 ? "BASILI TUT: BOYA BIRAK" :
                     "BOYA  " + Mathf.CeilToInt(amount.RemainingAmount) + " / " + Mathf.CeilToInt(amount.MaxAmount);
+            }
         }
         else if (phase == Phase.Spreading && drag != null)
         {
@@ -97,6 +107,9 @@ public class UIManager : MonoBehaviour
         }
         if (phase != Phase.Painting || RaycastAndSpawn == null || RaycastAndSpawn.PaintCount == 0) return;
         phase = Phase.Spreading;
+        if (UndoButton != null) UndoButton.interactable = false;
+        if (ClearButton != null) ClearButton.interactable = false;
+        if (PaintHistory != null) PaintHistory.Forget();
         if (ImpastoPaintSurface.Active != null) ImpastoPaintSurface.Active.Flush();
         RaycastAndSpawn.EndStroke();
         RaycastAndSpawn.gameObject.SetActive(false);
@@ -152,6 +165,8 @@ public class UIManager : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (UndoButton != null) UndoButton.onClick.RemoveListener(UndoPainting);
+        if (ClearButton != null) ClearButton.onClick.RemoveListener(ClearPainting);
         if (DoneButton != null) DoneButton.onClick.RemoveListener(DoneButtonClicked);
         if (drag != null) drag.OnCompleted -= CompleteSpread;
         if (comparer != null)
@@ -160,4 +175,7 @@ public class UIManager : MonoBehaviour
             comparer.OnComparisonFailed -= ShowComparisonFailure;
         }
     }
+
+    private void UndoPainting() { if (phase == Phase.Painting && PaintHistory != null) PaintHistory.UndoStroke(); }
+    private void ClearPainting() { if (phase == Phase.Painting && PaintHistory != null) PaintHistory.ClearPainting(); }
 }

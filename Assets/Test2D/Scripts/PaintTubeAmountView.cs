@@ -27,6 +27,7 @@ public sealed class PaintTubeAmountView : MonoBehaviour
     public void Advance(float deltaTime)
     {
         if (tube == null || amount == null) return;
+        if (amount.UsedAmount < previousUsed) pressure = 0;
         float spent = Mathf.Max(0, amount.UsedAmount - previousUsed);
         previousUsed = amount.UsedAmount;
         float dt = Mathf.Max(0, deltaTime);

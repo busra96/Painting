@@ -16,10 +16,10 @@ public sealed class WorkshopVisualController : MonoBehaviour
     public PaintTubeAmountView amountTube;
     public RectTransform selectedMark;
     public RectTransform[] paletteButtons;
+    public bool tabletopLayout;
 
     public bool IsReady { get; private set; }
     public Rect CurrentPaperViewport { get; private set; }
-    private ColorType previousColor = (ColorType)(-1);
     private Vector2 markerOffset;
     private readonly Vector3[] regionCorners = new Vector3[4];
     private static readonly ColorType[] PaletteTypes = { ColorType.Red, ColorType.Yellow, ColorType.Green,
@@ -31,7 +31,7 @@ public sealed class WorkshopVisualController : MonoBehaviour
             surface.RevealBackdropCanvas = true;
         // Marker placement is authored in the editor and retained as a relative offset.
         if (selectedMark != null && paletteButtons != null && paletteButtons.Length > 0)
-            markerOffset = selectedMark.anchoredPosition - paletteButtons[0].anchoredPosition;
+            markerOffset = (Vector2)(selectedMark.localPosition - paletteButtons[0].localPosition);
     }
 
     private void Start()
@@ -75,15 +75,15 @@ public sealed class WorkshopVisualController : MonoBehaviour
     private void UpdateVisuals()
     {
         if (selectedMark == null) return;
-        if (previousColor != selection.ColorType)
+        // Anchor-based controls move when the Canvas resizes, even if the selected color did not change.
         {
             for (int i = 0; i < PaletteTypes.Length && i < paletteButtons.Length; i++)
                 if (PaletteTypes[i] == selection.ColorType && paletteButtons[i] != null)
                 {
-                    selectedMark.anchoredPosition = paletteButtons[i].anchoredPosition + markerOffset;
+                    Vector3 position = paletteButtons[i].localPosition + (Vector3)markerOffset;
+                    if (selectedMark.localPosition != position) selectedMark.localPosition = position;
                     break;
                 }
-            previousColor = selection.ColorType;
         }
         bool paletteVisible = selection.RedButton != null && selection.RedButton.gameObject.activeSelf;
         if (selectedMark.gameObject.activeSelf != paletteVisible) selectedMark.gameObject.SetActive(paletteVisible);

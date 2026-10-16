@@ -2,29 +2,72 @@
 
 Sahne: `Assets/Test2D/Scenes/Test 1.unity`, hiyerarşi: `Canvas/Workshop`.
 
+Güncel tasarım, kullanıcının **Sıcak Stüdyoda Resim Paleti.png** referansındaki üstten masa görünümüne göre hazırlanmıştır. Tuval dokusu ve geri al/çöp kartları doğrudan verilen görselin Sprite bölgeleridir; arka plan ve ayrıştırılmış parçalar aynı referansa göre üretilmiştir. Miktar yazısı başlangıçta gerçek bütçeyi (`100%`) gösterir; referanstaki `60%` sabit bir resim değildir. Büyük durum paneli kaldırılmıştır; yayma/sonuç mesajları alt boşlukta görünür.
+
+Panel içindeki parçalar oransal RectTransform anchor'ları kullanır; kamera/Canvas ölçeği değişince tüp ve palet taşmaz. Başlık, yüzde, durum ve DONE/RETRY yazılarında `WorkshopTextScale/Font Size At 941`, referans genişlikteki düzenlenebilir yazı boyutudur. Font seçimi ve rengi TMP bileşeninde kalır. Ekran görüntüsü kontrolleri geçici render hedefinin gerçek ölçeğini kullanır ve tüp/palet parçalarının panel içinde kaldığını ayrıca sınar.
+
 | Nesne | Düzenleme |
 | --- | --- |
 | Background | Arka plan Image sprite'ı ve rengi |
 | Target Card/Target Artwork | Hedef resmin sprite'ı, konumu ve ölçüsü |
-| Amount Panel/Title | Amount başlığı, font ve rengi |
+| Amount Panel/Title Tape/Title | Amount başlığı, font ve rengi |
 | Amount Panel/Paint Tube | Boya azaldıkça ezilen tüp; RectTransform, folyo/etiket/çizgi renkleri ve doluluk önizlemesi |
-| Amount Panel/Remaining Paint | Gerçek kalan boyanın yüzde metni, fontu ve yerleşimi |
-| Status Panel/Status Text | Durum yazısının fontu, rengi ve ölçüsü |
+| Amount Panel/Percent Tape/Remaining Paint | Gerçek kalan boyanın yüzde metni, fontu ve yerleşimi |
+| Status Text | Yayma ve sonuç yazısının fontu, rengi ve ölçüsü |
 | Canvas Frame | Boyama çerçevesinin sprite'ı ve RectTransform'u |
 | Canvas Frame/Paint Area | Gerçek boyanın eşleneceği alan; çerçeveyi taşırken otomatik birlikte taşınır |
 | Palette Panel/Red…Orange | Altı ayrı Button + Image; sprite, tint ve yerleşim |
 | Palette Panel/Selected Paint | Seçim işaretinin görünümü ve ilk boyaya göre uzaklığı |
 | Done Button/Button Label | Buton sprite'ı, fontu ve yazı stili |
+| Undo Button / Clear Button | Geri al ve tuvali temizle düğmelerinin Image'ı ve hit alanları |
 
 `UIManager` durum ve Done/Retry metnini oyun aşamasına göre değiştirir. Boya rengini `ColorSelection` üzerindeki pigment renklerinden, düğme görünümünü düğmenin Image tint'inden ayrı ayrı değiştirebilirsiniz. `WorkshopVisualController` yeni UI nesnesi oluşturmaz; seçim işaretini günceller. `PaintTubeAmountView` gerçek `PaintAmount` bütçesini izler. Çizimde boya harcandığında tüpün gövdesi arkadan uca doğru ezilir ve açık ağızdan seçili pigment çıkar; çizim durunca çıkış söner. Tüpün ölçüsü ve konumu animasyon sırasında değiştirilmez. `PaintTubeGraphic` içindeki `Preview Remaining` ile Edit Mode'da dolu/boş görünümü incelenebilir. Folyo, kağıt ve kontur renkleri, ezilme/yumuşama hızları Inspector'dan düzenlenebilir.
 
-Tüp, mat renkli küçük bir UI mesh'idir; yeni raster görsel, parçacık, çalışma anında nesne üretimi veya texture güncellemesi kullanmaz. Eski yedi miktar parçası kaldırılır. **Tools → Painting → Replace Amount Segments With Paint Tube** mevcut Workshop'ta yalnız Amount çocuklarını dönüştürür; zaten tüp varsa elle düzenlenmiş nesneleri yeniden kurmaz. `PaintTubeChecks.RunBatch` gerçek bütçe tüketimi, yarım/boş gövde, seçili pigment, spatula ilerlemesinden bağımsızlık ve bellek tahsisini kontrol eder; dolu, sıkılan, yarım ve boş ekran görüntülerini `Logs/WorkshopPreview` altına kaydeder.
+Tüp, `MetalTube.png` sprite'ını küçük bir UI mesh üzerinde ezer; pigmenti metal iç yüzeyine boyar, sıkarken kapağı hafifçe ayırır. Parçacık, çalışma anında nesne üretimi veya texture güncellemesi kullanmaz. `PaintTubeChecks.RunBatch` gerçek bütçe tüketimi, yarım/boş gövde, seçili pigment, spatula ilerlemesinden bağımsızlık ve bellek tahsisini kontrol eder; dolu, sıkılan, yarım ve boş ekran görüntülerini `Logs/WorkshopPreview` altına kaydeder.
+
+`Canvas` üzerindeki `PaintHistory`, varsayılan olarak en fazla 8 çizgi ve yaklaşık 32 MB piksel verisi saklar. Yalnız çizgi başlangıcında dolu piksellerin boya hacmi, pigmenti, üst katmanı, katman sırası ve gevşeme durumu kaydedilir. Sürekli çizim karelerinde snapshot alınmaz. Geri al, harcanan boya ve çizim sayaçlarını da geri yükler. Çöp düğmesi tuvali/geçmişi temizler ve tüpü doldurur. DONE sonrasında iki düzenleme düğmesi kilitlenir ve geçmiş serbest bırakılır. `PaintHistoryChecks.RunBatch` katmanların tam geri yüklenmesini, boş tüpten geri almayı, bellek/çizgi sınırlarını ve bu aşama geçişini test eder.
+
+**Tools → Painting → Apply Reference Tabletop Layout**, mevcut Workshop'u ilk kez referans düzenine dönüştürür; zaten dönüştürülmüş sahnede elle düzenlenen yerleşimi yeniden kurmaz. Sonrasında doğrudan Canvas çocuklarını düzenleyin. `PaletteGouache.mat`, boya Image tint'ini korurken nötr sprite'ın açık renkli fırça izlerini okunur tutar. `Fonts/Kalam SDF.asset`, [Kalam](https://github.com/google/fonts/tree/main/ofl/kalam) fontunun sabit atlasıdır; kaynak font ve SIL OFL lisansı aynı klasördedir.
 
 Eski tek parça UI arka planı ve Retry örtüsü kaldırılmıştır. Görseller `Resources` yüklemesi yerine sahnedeki sprite referanslarıyla kullanılır. `WorkshopSceneAuthoring` mevcut bir Workshop'u yeniden kurmaz; elle yapılan tasarımı silmez.
 
 ## Görseller ve üretim
 
-Üç görsel yerleşik `image_gen` aracıyla üretilmiştir. İnsan tarafından çizildiği iddia edilmez; kullanıcı isteğine göre mat guaj, fırça izleri, hafif düzensiz kenarlar ve daha sakin ışıkla el boyaması görünümü hedeflenmiştir. Kaynak PNG şeffaflığı korunur; panel ve boya lekesi Unity'de Sprite olarak içe aktarılır. Panelin 9-slice sınırları importer'da düzenlenebilir.
+### Güncel masa parçaları
+
+Son dosyalar **`Assets/Test2D/UI/Art/`** altındadır: `TabletopBackground.png`, `TabletopPlank.png`, `MetalTube.png`, `PaletteDab.png`, `TargetPaper.png`, `DonePlate.png`. Bunlar yerleşik `image_gen` ile, kullanıcının görseli referans alınarak oluşturulmuştur; insan tarafından çizildiği iddia edilmez. Şeffaf PNG alfaları korunmuştur. `*Trimmed.asset` Sprite'ları PNG'yi değiştirmeden şeffaf kenar boşluğunu içe aktarma aşamasında sınırlar; texture okuma izni sonrasında kapatılır.
+
+`TabletopReference.png`, kullanıcının verdiği görselin projedeki kopyasıdır. `ReferenceCanvas.asset`, `UndoCard.asset`, `TrashCard.asset`, `PaperTape.asset` aynı texture'ın ayrı Sprite bölgeleridir. UI kontrolü tüm arka plana gömülmez; sahnede ayrı Image/Button/TMP nesneleri olarak durur.
+
+Üretim komutları (tümünde referans: **Sıcak Stüdyoda Resim Paleti.png**, yerleşik araç):
+
+**TabletopBackground.png** — şeffaflık kapalı:
+
+> Use case: precise-object-edit. Asset type: portrait 941:1672 background for a Unity painting game. Edit the reference, preserve EXACT overhead view, warm brown worn wood table, gouache brush strokes, lighting, edge decorations: water glasses at far left, brushes at far right, paint-smeared edge paper scraps, soft foreground plant at lower left. Remove ALL interface objects: top left pinned target card, top Amount plank/tube/labels, central white canvas, lower palette plank/paint dabs, Done button and undo/trash cards. In all removed areas continue the same brown hand-painted wooden tabletop, respecting the original plank grain and light. The large center must be bare wood, NO white canvas or rectangle. Keep composition and colors of the reference, not a new room. No text, no UI, no paint tube, no buttons, no palette, no target drawing. Entire portrait background filled, not transparent.
+
+**TabletopPlank.png** — şeffaflık açık:
+
+> Use case: background-extraction. Asset type: separate blank horizontal Unity UI plank. Reference role: exact style and material of the Amount plank and lower paint palette plank. Extract/recreate ONE pale raw wooden artist plank, hand-painted gouache, scuffed warm beige with tiny paint flecks and dark uneven edges, a few subtle screw heads near corners. Straight-on top view, rectangular long plank about 4.8:1, very slight imperfect rounded corners, full object visible, minimal padding. BLANK CENTER. Remove the tube, all paint dabs, labels, writing, symbols. Transparent background outside plank. Exact warm tactile brush-painted style of reference, no shiny 3D bevel, no gold trim, no additional objects.
+
+**MetalTube.png** — şeffaflık açık:
+
+> Use case: background-extraction. Asset type: one horizontal paint tube sprite for deformable Unity UI. Isolate the metal tube from the reference Amount panel, full object on true transparent background, NO plank, labels or text. EXACT reference gouache painting style, folded silver crimp on LEFT, gently bulging squarish metal tube body with rounded shoulder, threaded metal neck and ribbed BLACK CAP on RIGHT. Change red paint region to NEUTRAL warm ivory/silver so the game can tint the inner body dynamically. Interior body a broad quiet silver-cream panel bordered by metal rim, maintain brush marks and white hand-painted highlights like original. Top-down view, long horizontal about 4.5:1 aspect, tube occupies almost full image width, centered, minimum padding. Entire tube visible. No red pigment, no writing, no brand, no other objects, no photographic rendering, no glossy plastic, keep traditional gouache texture and fine dark uneven contour.
+
+**PaletteDab.png** — şeffaflık açık:
+
+> Use case: background-extraction. Asset type: tintable Unity paint button sprite. Isolate ONE paint dab matching the thick curled impasto dabs in the bottom palette of reference. Same top-down view, irregular round puddle and 3 broad swirled ridges, dry painted contour, tactile hand-painted gouache marks, a few thick ivory highlight strokes. Make it neutral WHITE/gray for recoloring via Unity Image tint: dark-medium gray shadows and nearly white raised ridges, do not bake yellow or warm orange. Full object visible with very little transparent padding. Actual transparent background. No wooden palette, no text, no other objects, no photographic 3D render, not a perfect spiral.
+
+**TargetPaper.png** — şeffaflık açık:
+
+> Use case: background-extraction. Asset type: separate Unity target card sprite. Isolate the top-left reference card including its metal paperclip at the upper edge, warm off-white textured paper, irregular hand-painted edges and a subtle small shadow. Remove all red/yellow/blue/green drawing inside, leave paper completely blank. Portrait rectangular card about 0.8:1 width/height, straighten its long edges to vertical so Unity can rotate it at layout time. Gouache/brush-painted illustration EXACTLY matching reference. Full object and paperclip visible, minimal padding, true transparent background. No table, no other objects, no text, no pins.
+
+**DonePlate.png** — şeffaflık açık:
+
+> Use case: background-extraction. Asset type: Unity UI Done button background. Extract/recreate ONLY the teal green button at bottom center of the reference, remove the DONE letters leaving a completely blank quiet center. Horizontal rectangle about 3.3:1, slightly rounded imperfect corners, dark fine outer outline and thin scuffed ochre/cream painted inner edge. Opaque desaturated green-blue paint with broad hand-painted brush marks and worn corners EXACTLY like reference. Straight-on overhead view. Full object visible, minimum transparent margin, true transparent background. No table, no text, no icons, no extra objects, no shiny plastic bevel, no 3D render.
+
+### Önceki atölye tasarımının kaynakları
+
+Önceki üç görsel yerleşik `image_gen` aracıyla üretilmiştir; güncel masa sahnesinde bunların yerine yukarıdaki parçalar kullanılır. Aşağıdaki komutlar eski tasarımın üretim kaydıdır.
 
 ### StudioGouache.png
 

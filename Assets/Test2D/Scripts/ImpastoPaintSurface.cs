@@ -6,7 +6,7 @@ using Unity.Profiling;
 // Pigment mass and paint volume live here. PaintIn2D remains the albedo/render-texture and scoring backend.
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(30)]
-public sealed class ImpastoPaintSurface : MonoBehaviour
+public sealed partial class ImpastoPaintSurface : MonoBehaviour
 {
     public static ImpastoPaintSurface Active { get; private set; }
     public SettingsContain settings;

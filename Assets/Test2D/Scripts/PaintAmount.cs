@@ -61,4 +61,13 @@ public class PaintAmount : MonoBehaviour
         }
         return granted;
     }
+
+    public void RestoreUsedAmount(float used)
+    {
+        UsedAmount = Mathf.Clamp(used, 0, MaxAmount);
+        isFull = RemainingAmount < 0.0001f;
+        displayUsage = true;
+        displayedValue = RemainingFraction * 100;
+        if (PaintAmountSlider != null) PaintAmountSlider.value = displayedValue;
+    }
 }

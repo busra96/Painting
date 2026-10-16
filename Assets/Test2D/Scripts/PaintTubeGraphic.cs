@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Sprites;
 
 // Small deformable UI mesh: no generated textures, particles or per-frame allocations.
 [AddComponentMenu("UI/Paint Tube Graphic")]
@@ -11,6 +12,8 @@ public sealed class PaintTubeGraphic : MaskableGraphic
     public Color outlineColor = new Color(0.30f, 0.24f, 0.18f);
     [Range(0, 1)] public float previewRemaining = 1;
     public Color previewPigment = new Color(0.82f, 0.11f, 0.13f);
+    public Sprite artwork;
+    public override Texture mainTexture => artwork != null ? artwork.texture : base.mainTexture;
     private float remaining = 1, pressure;
     private Color pigment;
     public float DisplayedRemaining => Application.isPlaying ? remaining : previewRemaining;
@@ -32,6 +35,11 @@ public sealed class PaintTubeGraphic : MaskableGraphic
         float fill = DisplayedRemaining;
         Color paint = Pigment;
         float squeeze = Application.isPlaying ? pressure : 0;
+        if (artwork != null)
+        {
+            DrawPaintedTube(vh, fill, squeeze, paint);
+            return;
+        }
         const int steps = 28;
         // The spent part stays as flattened foil, rather than disappearing like a bar.
         for (int i = 0; i < steps; i++)
@@ -80,6 +88,62 @@ public sealed class PaintTubeGraphic : MaskableGraphic
             Band(vh, 0.868f, tip - 0.003f, thickness * 0.12f, thickness * 0.48f,
                 -0.02f, thickness * 0.35f - 0.025f, Color.Lerp(paint, paperColor, 0.45f));
         }
+    }
+
+    private void DrawPaintedTube(VertexHelper vh, float fill, float squeeze, Color paint)
+    {
+        Vector4 uv = DataUtility.GetOuterUV(artwork);
+        for (int i = 0; i < 40; i++)
+        {
+            float x0 = i / 40f, x1 = (i + 1) / 40f;
+            TexturedBand(vh, uv, x0, x1, 0, 1, 0, 1, Color.white, fill, squeeze);
+        }
+        // Pigment occupies the metal interior; its torn brush edge follows the actual supply.
+        float right = Mathf.Lerp(0.15f, 0.80f, fill);
+        for (int i = 0; i < 32; i++)
+        {
+            float x0 = 0.15f + i * 0.65f / 32;
+            if (x0 >= right) break;
+            float x1 = Mathf.Min(right, x0 + 0.65f / 32);
+            float bottom0 = 0.31f + Mathf.Sin(x0 * 127) * 0.012f;
+            float bottom1 = 0.31f + Mathf.Sin(x1 * 127) * 0.012f;
+            float top0 = 0.69f + Mathf.Sin(x0 * 93) * 0.010f;
+            float top1 = 0.69f + Mathf.Sin(x1 * 93) * 0.010f;
+            TexturedBand(vh, uv, x0, x1, bottom0, top0, bottom1, top1, paint, fill, squeeze);
+            if (x0 > 0.23f && x1 < Mathf.Min(right, 0.57f))
+                TexturedBand(vh, uv, x0, x1, 0.60f, 0.615f, 0.601f, 0.619f,
+                    Color.Lerp(paint, Color.white, 0.53f), fill, squeeze);
+        }
+        if (squeeze > 0.001f)
+            TexturedBand(vh, uv, 0.88f, 0.88f + squeeze * 0.074f,
+                0.47f, 0.52f, 0.45f, 0.51f, paint, 1, 0, true);
+    }
+
+    private void TexturedBand(VertexHelper vh, Vector4 uv, float x0, float x1, float b0, float t0,
+        float b1, float t1, Color tint, float fill, float squeeze, bool stream = false)
+    {
+        int start = vh.currentVertCount;
+        AddTexturedVertex(vh, uv, x0, b0, tint, fill, squeeze, stream);
+        AddTexturedVertex(vh, uv, x0, t0, tint, fill, squeeze, stream);
+        AddTexturedVertex(vh, uv, x1, t1, tint, fill, squeeze, stream);
+        AddTexturedVertex(vh, uv, x1, b1, tint, fill, squeeze, stream);
+        vh.AddTriangle(start, start + 1, start + 2);
+        vh.AddTriangle(start + 2, start + 3, start);
+    }
+
+    private void AddTexturedVertex(VertexHelper vh, Vector4 uv, float x, float y, Color tint,
+        float fill, float squeeze, bool stream)
+    {
+        Rect r = rectTransform.rect;
+        float front = Mathf.Lerp(-0.08f, 0.82f, 1 - fill);
+        float inflated = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(front, front + 0.075f, x));
+        float scale = x > 0.86f ? 1 : Mathf.Lerp(0.18f, 1, inflated);
+        scale -= squeeze * 0.13f * Mathf.Exp(-Mathf.Pow((x - front - 0.12f) * 12, 2));
+        float shiftedX = x + (x > 0.89f && !stream ? squeeze * 0.055f : 0);
+        Vector3 position = new Vector3(r.xMin + shiftedX * r.width, r.center.y + (y - 0.5f) * scale * r.height);
+        Vector2 tex = stream ? new Vector2(Mathf.Lerp(uv.x, uv.z, 0.4f), Mathf.Lerp(uv.y, uv.w, 0.5f)) :
+            new Vector2(Mathf.Lerp(uv.x, uv.z, x), Mathf.Lerp(uv.y, uv.w, y));
+        vh.AddVert(position, tint * color, tex);
     }
 
     private static float HalfHeight(float x, float fill, float squeeze)

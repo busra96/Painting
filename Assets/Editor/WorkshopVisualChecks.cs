@@ -99,8 +99,17 @@ public static class WorkshopVisualChecks
 
             Check(visual.amountTube.transform.IsChildOf(visual.canvas.transform), "Paint tube is an editable Canvas child");
             Check(GameObject.Find("Amount Segments") == null, "Old amount segments are removed");
+            Check(visual.tabletopLayout && visual.backgroundImage.sprite.name == "TabletopBackground",
+                "Overhead wooden tabletop artwork is serialized in the scene");
+            Check(Shader.Find("Painting/Palette Gouache").isSupported &&
+                !ShaderUtil.ShaderHasError(Shader.Find("Painting/Palette Gouache")), "Painted palette shader is supported and compiles");
+            Check(visual.amountTube.tube.artwork != null, "Animated tube uses the painted metal artwork");
+            Check(visual.selectedMark.GetComponent<PaletteSelectionGraphic>() != null,
+                "Selected paint has the reference's cream corner brackets");
 
             UIManager ui = Object.FindFirstObjectByType<UIManager>();
+            Check(ui.UndoButton != null && ui.ClearButton != null && ui.PaintHistory != null && !ui.ShowPaintingHint &&
+                GameObject.Find("Status Panel") == null, "Reference undo/clear controls replace the old status board");
             TMP_Text doneLabel = ui.DoneButton.GetComponentInChildren<TMP_Text>(true);
             Check(doneLabel != null && doneLabel.text == "DONE", "Bottom button matches the reference label");
             Check(surface.RevealBackdropCanvas, "Blank paper reveals the reference canvas weave");
@@ -110,6 +119,8 @@ public static class WorkshopVisualChecks
             foreach (Button button in buttons)
                 CheckHitArea(button);
             CheckHitArea(ui.DoneButton);
+            CheckHitArea(ui.UndoButton);
+            CheckHitArea(ui.ClearButton);
             selection.YellowButton.onClick.Invoke();
             Check(selection.ColorType == ColorType.Yellow && selection.GetOriginalColor() == selection.YellowColor,
                 "Palette button selects the pigment used by drawing");
@@ -142,6 +153,7 @@ public static class WorkshopVisualChecks
             visual.RefreshLayout();
 
             CapturePreview("Workshop-Initial");
+            CapturePreview("Tabletop-Reference", 941, 1672);
             surface.ClearPaint();
             Vector3 center = paper.bounds.center;
             surface.Deposit(center, selection.RedColor, 1f, Vector2.zero);
@@ -162,6 +174,10 @@ public static class WorkshopVisualChecks
     public static void CapturePreview(string name, int width = 540, int height = 960)
     {
         Camera camera = Camera.main;
+        Canvas canvas = Object.FindFirstObjectByType<WorkshopVisualController>().canvas;
+        CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
+        bool oldScalerEnabled = scaler != null && scaler.enabled;
+        float oldScale = canvas.scaleFactor;
         RenderTexture oldTarget = camera.targetTexture;
         RenderTexture oldActive = RenderTexture.active;
         var target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
@@ -169,8 +185,15 @@ public static class WorkshopVisualChecks
         try
         {
             camera.targetTexture = target;
+            // CanvasScaler reads the batch Game View size, not the temporary render target.
+            // Match the portrait device's width so local controls and fonts render at real size.
+            if (scaler != null) scaler.enabled = false;
+            canvas.scaleFactor = width / 941f;
             Object.FindFirstObjectByType<WorkshopVisualController>().RefreshLayout();
             Canvas.ForceUpdateCanvases();
+            CheckInsideParent(Object.FindFirstObjectByType<WorkshopVisualController>().amountTube.tube.rectTransform);
+            foreach (RectTransform button in Object.FindFirstObjectByType<WorkshopVisualController>().paletteButtons)
+                CheckInsideParent(button);
             camera.Render();
             RenderTexture.active = target;
             snapshot.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0);
@@ -188,6 +211,8 @@ public static class WorkshopVisualChecks
         finally
         {
             camera.targetTexture = oldTarget;
+            if (scaler != null) scaler.enabled = oldScalerEnabled;
+            canvas.scaleFactor = oldScale;
             RenderTexture.active = oldActive;
             Object.FindFirstObjectByType<WorkshopVisualController>().RefreshLayout();
             target.Release();
@@ -201,6 +226,22 @@ public static class WorkshopVisualChecks
         if (!condition) throw new Exception("FAIL: " + message);
         checks++;
         Debug.Log("WORKSHOP PASS: " + message);
+    }
+
+    private static void CheckInsideParent(RectTransform rect)
+    {
+        RectTransform parent = rect.parent as RectTransform;
+        var corners = new Vector3[4];
+        rect.GetWorldCorners(corners);
+        Rect bounds = parent.rect;
+        bool inside = true;
+        for (int i = 0; i < corners.Length; i++)
+        {
+            Vector3 local = parent.InverseTransformPoint(corners[i]);
+            inside &= local.x >= bounds.xMin - 1 && local.x <= bounds.xMax + 1 &&
+                local.y >= bounds.yMin - 1 && local.y <= bounds.yMax + 1;
+        }
+        Check(inside, rect.name + " stays inside its panel at the preview's device scale");
     }
 
     private static void CheckHitArea(Button button)
