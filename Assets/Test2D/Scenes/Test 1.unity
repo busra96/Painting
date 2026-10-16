@@ -380,8 +380,7 @@ MonoBehaviour:
   selection: {fileID: 5819775}
   tube: {fileID: 41893726}
   remainingLabel: {fileID: 135357940}
-  collapseSpeed: 12
-  releaseSpeed: 9
+  fillResponseSpeed: 12
 --- !u!114 &41893726
 MonoBehaviour:
   m_ObjectHideFlags: 0

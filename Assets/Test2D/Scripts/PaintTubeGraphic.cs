@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Sprites;
 
-// Small deformable UI mesh: no generated textures, particles or per-frame allocations.
+// Static tube artwork with a budget-driven pigment layer; no per-frame allocations.
 [AddComponentMenu("UI/Paint Tube Graphic")]
 [RequireComponent(typeof(CanvasRenderer))]
 public sealed class PaintTubeGraphic : MaskableGraphic
@@ -14,18 +14,16 @@ public sealed class PaintTubeGraphic : MaskableGraphic
     public Color previewPigment = new Color(0.82f, 0.11f, 0.13f);
     public Sprite artwork;
     public override Texture mainTexture => artwork != null ? artwork.texture : base.mainTexture;
-    private float remaining = 1, pressure;
+    private float remaining = 1;
     private Color pigment;
     public float DisplayedRemaining => Application.isPlaying ? remaining : previewRemaining;
-    public float SqueezePressure => pressure;
     public Color Pigment => Application.isPlaying ? pigment : previewPigment;
 
-    public void SetState(float fill, float squeeze, Color paint)
+    public void SetState(float fill, Color paint)
     {
         fill = Mathf.Clamp01(fill);
-        squeeze = Mathf.Clamp01(squeeze);
-        if (Mathf.Abs(fill - remaining) < 0.00005f && Mathf.Abs(squeeze - pressure) < 0.0001f && paint == pigment) return;
-        remaining = fill; pressure = squeeze; pigment = paint;
+        if (Mathf.Abs(fill - remaining) < 0.00005f && paint == pigment) return;
+        remaining = fill; pigment = paint;
         SetVerticesDirty();
     }
 
@@ -34,34 +32,40 @@ public sealed class PaintTubeGraphic : MaskableGraphic
         vh.Clear();
         float fill = DisplayedRemaining;
         Color paint = Pigment;
-        float squeeze = Application.isPlaying ? pressure : 0;
         if (artwork != null)
         {
-            DrawPaintedTube(vh, fill, squeeze, paint);
+            DrawPaintedTube(vh, fill, paint);
             return;
         }
         const int steps = 28;
-        // The spent part stays as flattened foil, rather than disappearing like a bar.
+        // Keep the foil and nozzle fixed while the pigment area follows the remaining amount.
         for (int i = 0; i < steps; i++)
         {
             float x0 = Mathf.Lerp(0.035f, 0.77f, i / (float)steps);
             float x1 = Mathf.Lerp(0.035f, 0.77f, (i + 1f) / steps);
-            float h0 = HalfHeight(x0, fill, squeeze), h1 = HalfHeight(x1, fill, squeeze);
+            float h0 = HalfHeight(x0), h1 = HalfHeight(x1);
             Band(vh, x0, x1, -h0 - 0.025f, h0 + 0.025f, -h1 - 0.025f, h1 + 0.025f, outlineColor);
             Band(vh, x0, x1, -h0, -h0 * 0.53f, -h1, -h1 * 0.53f, Color.Lerp(metalColor, outlineColor, 0.18f));
             Band(vh, x0, x1, -h0 * 0.53f, h0 * 0.56f, -h1 * 0.53f, h1 * 0.56f, paperColor);
             Band(vh, x0, x1, h0 * 0.56f, h0, h1 * 0.56f, h1, metalColor);
             if (x0 > 0.19f && x1 < 0.66f)
             {
-                Band(vh, x0, x1, -h0 * 0.64f, h0 * 0.64f, -h1 * 0.64f, h1 * 0.64f, Color.Lerp(paint, paperColor, 0.14f));
-                Band(vh, x0, x1, h0 * 0.40f, h0 * 0.53f, h1 * 0.40f, h1 * 0.53f, Color.Lerp(paint, paperColor, 0.48f));
-                if (i % 4 == 0)
+                float paintRight = Mathf.Lerp(0.19f, 0.66f, fill);
+                float p0 = Mathf.Max(x0, 0.19f), p1 = Mathf.Min(x1, paintRight);
+                if (p1 > p0)
+                {
+                    float t0 = Mathf.InverseLerp(x0, x1, p0), t1 = Mathf.InverseLerp(x0, x1, p1);
+                    float ph0 = Mathf.Lerp(h0, h1, t0), ph1 = Mathf.Lerp(h0, h1, t1);
+                    Band(vh, p0, p1, -ph0 * 0.64f, ph0 * 0.64f, -ph1 * 0.64f, ph1 * 0.64f, Color.Lerp(paint, paperColor, 0.14f));
+                    Band(vh, p0, p1, ph0 * 0.40f, ph0 * 0.53f, ph1 * 0.40f, ph1 * 0.53f, Color.Lerp(paint, paperColor, 0.48f));
+                }
+                if (i % 4 == 0 && x0 < paintRight)
                     Band(vh, x0, x1, -h0 * 0.27f, -h0 * 0.16f, -h1 * 0.25f, -h1 * 0.14f, paperColor);
             }
         }
-        // Rolled seam and creases travel toward the fixed shoulder as the tube empties.
-        float fold = Mathf.Lerp(0.04f, 0.715f, 1 - fill);
-        float foldH = HalfHeight(fold, fill, squeeze) + 0.035f;
+        // The folded end is fixed; only paint inside the tube changes with the budget.
+        const float fold = 0.04f;
+        float foldH = HalfHeight(fold) + 0.035f;
         Band(vh, fold - 0.014f, fold + 0.016f, -foldH, foldH, -foldH * 0.94f, foldH * 0.94f, outlineColor);
         Band(vh, fold - 0.008f, fold + 0.004f, -foldH * 0.83f, foldH * 0.83f, -foldH * 0.82f, foldH * 0.82f, metalColor);
         for (int i = 0; i < 7; i++)
@@ -80,23 +84,15 @@ public sealed class PaintTubeGraphic : MaskableGraphic
             float x = 0.808f + i * 0.019f;
             Band(vh, x, x + 0.005f, -0.095f, 0.095f, -0.095f, 0.095f, outlineColor);
         }
-        if (squeeze > 0.001f)
-        {
-            float tip = 0.87f + squeeze * 0.115f;
-            float thickness = 0.025f + squeeze * 0.025f;
-            Band(vh, 0.863f, tip, -thickness, thickness, -thickness * 1.25f - 0.025f, thickness * 0.8f - 0.025f, paint);
-            Band(vh, 0.868f, tip - 0.003f, thickness * 0.12f, thickness * 0.48f,
-                -0.02f, thickness * 0.35f - 0.025f, Color.Lerp(paint, paperColor, 0.45f));
-        }
     }
 
-    private void DrawPaintedTube(VertexHelper vh, float fill, float squeeze, Color paint)
+    private void DrawPaintedTube(VertexHelper vh, float fill, Color paint)
     {
         Vector4 uv = DataUtility.GetOuterUV(artwork);
         for (int i = 0; i < 40; i++)
         {
             float x0 = i / 40f, x1 = (i + 1) / 40f;
-            TexturedBand(vh, uv, x0, x1, 0, 1, 0, 1, Color.white, fill, squeeze);
+            TexturedBand(vh, uv, x0, x1, 0, 1, 0, 1, Color.white);
         }
         // Pigment occupies the metal interior; its torn brush edge follows the actual supply.
         float right = Mathf.Lerp(0.15f, 0.80f, fill);
@@ -109,51 +105,37 @@ public sealed class PaintTubeGraphic : MaskableGraphic
             float bottom1 = 0.31f + Mathf.Sin(x1 * 127) * 0.012f;
             float top0 = 0.69f + Mathf.Sin(x0 * 93) * 0.010f;
             float top1 = 0.69f + Mathf.Sin(x1 * 93) * 0.010f;
-            TexturedBand(vh, uv, x0, x1, bottom0, top0, bottom1, top1, paint, fill, squeeze);
+            TexturedBand(vh, uv, x0, x1, bottom0, top0, bottom1, top1, paint);
             if (x0 > 0.23f && x1 < Mathf.Min(right, 0.57f))
                 TexturedBand(vh, uv, x0, x1, 0.60f, 0.615f, 0.601f, 0.619f,
-                    Color.Lerp(paint, Color.white, 0.53f), fill, squeeze);
+                    Color.Lerp(paint, Color.white, 0.53f));
         }
-        if (squeeze > 0.001f)
-            TexturedBand(vh, uv, 0.88f, 0.88f + squeeze * 0.074f,
-                0.47f, 0.52f, 0.45f, 0.51f, paint, 1, 0, true);
     }
 
     private void TexturedBand(VertexHelper vh, Vector4 uv, float x0, float x1, float b0, float t0,
-        float b1, float t1, Color tint, float fill, float squeeze, bool stream = false)
+        float b1, float t1, Color tint)
     {
         int start = vh.currentVertCount;
-        AddTexturedVertex(vh, uv, x0, b0, tint, fill, squeeze, stream);
-        AddTexturedVertex(vh, uv, x0, t0, tint, fill, squeeze, stream);
-        AddTexturedVertex(vh, uv, x1, t1, tint, fill, squeeze, stream);
-        AddTexturedVertex(vh, uv, x1, b1, tint, fill, squeeze, stream);
+        AddTexturedVertex(vh, uv, x0, b0, tint);
+        AddTexturedVertex(vh, uv, x0, t0, tint);
+        AddTexturedVertex(vh, uv, x1, t1, tint);
+        AddTexturedVertex(vh, uv, x1, b1, tint);
         vh.AddTriangle(start, start + 1, start + 2);
         vh.AddTriangle(start + 2, start + 3, start);
     }
 
-    private void AddTexturedVertex(VertexHelper vh, Vector4 uv, float x, float y, Color tint,
-        float fill, float squeeze, bool stream)
+    private void AddTexturedVertex(VertexHelper vh, Vector4 uv, float x, float y, Color tint)
     {
         Rect r = rectTransform.rect;
-        float front = Mathf.Lerp(-0.08f, 0.82f, 1 - fill);
-        float inflated = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(front, front + 0.075f, x));
-        float scale = x > 0.86f ? 1 : Mathf.Lerp(0.18f, 1, inflated);
-        scale -= squeeze * 0.13f * Mathf.Exp(-Mathf.Pow((x - front - 0.12f) * 12, 2));
-        float shiftedX = x + (x > 0.89f && !stream ? squeeze * 0.055f : 0);
-        Vector3 position = new Vector3(r.xMin + shiftedX * r.width, r.center.y + (y - 0.5f) * scale * r.height);
-        Vector2 tex = stream ? new Vector2(Mathf.Lerp(uv.x, uv.z, 0.4f), Mathf.Lerp(uv.y, uv.w, 0.5f)) :
-            new Vector2(Mathf.Lerp(uv.x, uv.z, x), Mathf.Lerp(uv.y, uv.w, y));
+        Vector3 position = new Vector3(r.xMin + x * r.width, r.yMin + y * r.height);
+        Vector2 tex = new Vector2(Mathf.Lerp(uv.x, uv.z, x), Mathf.Lerp(uv.y, uv.w, y));
         vh.AddVert(position, tint * color, tex);
     }
 
-    private static float HalfHeight(float x, float fill, float squeeze)
+    private static float HalfHeight(float x)
     {
-        float front = Mathf.Lerp(-0.035f, 0.715f, 1 - fill);
-        float inflated = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(front - 0.02f, front + 0.065f, x));
         float shoulder = 1 - Mathf.SmoothStep(0, 1, Mathf.InverseLerp(0.67f, 0.77f, x)) * 0.60f;
-        float fullness = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(0, 0.09f, fill));
-        float dent = squeeze * Mathf.Exp(-Mathf.Pow((x - (front + 0.08f)) * 13, 2)) * 0.09f;
-        return 0.065f + inflated * fullness * (0.29f * shoulder - dent) + Mathf.Sin(x * 83) * 0.006f;
+        return 0.065f + 0.29f * shoulder + Mathf.Sin(x * 83) * 0.006f;
     }
 
     private void Band(VertexHelper vh, float x0, float x1, float bottom0, float top0, float bottom1, float top1, Color tint)

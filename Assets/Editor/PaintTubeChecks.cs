@@ -49,31 +49,28 @@ public static class PaintTubeChecks
             int children = amount.GetComponentsInChildren<Transform>(true).Length;
             view.Advance(1f / 60);
             Check(view.remainingLabel.text == "100%" && view.tube.DisplayedRemaining == 1, "Fresh scene starts with a full tube");
-            Check(view.tube.SqueezePressure == 0, "Idle full tube does not extrude paint");
             WorkshopVisualChecks.CapturePreview("Tube-Full", 941, 1672);
-            float fullArea = MeshArea(view.tube);
+            Bounds fullShell = ShellBounds(view.tube);
 
             float granted = amount.Spend(amount.MaxAmount * 0.5f);
             view.Advance(1f / 60);
-            Check(view.tube.SqueezePressure > 0 && amount.UsedAmount == granted, "Granted paint triggers a squeeze without spending extra paint");
-            WorkshopVisualChecks.CapturePreview("Tube-Squeezing", 941, 1672);
+            Check(amount.UsedAmount == granted, "The paint tube follows the granted budget exactly");
+            WorkshopVisualChecks.CapturePreview("Tube-Half-Transition", 941, 1672);
             Settle(view);
-            Check(Mathf.Abs(view.tube.DisplayedRemaining - 0.5f) < 0.001f && view.remainingLabel.text == "50%", "Half budget produces a half-collapsed tube");
-            Check(view.tube.SqueezePressure == 0, "Extrusion stops after consumption stops");
-            float halfArea = MeshArea(view.tube);
-            Check(halfArea < fullArea * 0.85f, "Rendered tube foil visibly collapses as paint is spent");
+            Check(Mathf.Abs(view.tube.DisplayedRemaining - 0.5f) < 0.001f && view.remainingLabel.text == "50%", "Half the budget displays a half-full paint tube");
+            Check(SameBounds(fullShell, ShellBounds(view.tube)), "Tube artwork keeps its original shape as paint is spent");
             WorkshopVisualChecks.CapturePreview("Tube-Half", 941, 1672);
 
             view.selection.SelectColor(ColorType.Blue);
             view.Advance(1f / 60);
-            Check(view.tube.Pigment == view.selection.BlueColor && view.tube.SqueezePressure == 0,
-                "Changing pigment recolors the tube without squeezing or consuming paint");
+            Check(view.tube.Pigment == view.selection.BlueColor,
+                "Changing pigment recolors the paint without changing the tube artwork");
             amount.ShowSpreadProgress(0.2f);
             view.Advance(1f / 60);
             Check(Mathf.Abs(view.tube.DisplayedRemaining - 0.5f) < 0.001f && view.remainingLabel.text == "50%",
                 "Spatula progress does not refill or drain the tube");
 
-            // Warm the animated graphic and TMP buffers before measuring a continuous stroke.
+            // Warm the amount graphic and TMP buffers before measuring a continuous stroke.
             for (int i = 0; i < 20; i++)
             {
                 amount.Spend(0.001f); view.Advance(1f / 60);
@@ -86,20 +83,19 @@ public static class PaintTubeChecks
                 view.tube.Rebuild(CanvasUpdate.PreRender);
             }
             long animatedAllocated = GC.GetAllocatedBytesForCurrentThread() - animatedBefore;
-            Check(animatedAllocated == 0, "Continuous squeeze and mesh rebuild allocate zero managed bytes");
+            Check(animatedAllocated == 0, "Continuous fill updates and mesh rebuild allocate zero managed bytes");
 
             amount.Spend(amount.MaxAmount);
             view.Advance(1f / 60);
-            Check(view.tube.SqueezePressure > 0 && amount.RemainingAmount == 0, "Last available paint is visibly squeezed");
+            Check(amount.RemainingAmount == 0, "The last paint spend exhausts the available budget");
             Settle(view);
-            Check(view.tube.DisplayedRemaining == 0 && view.remainingLabel.text == "0%", "Empty budget leaves a fully flattened tube");
-            Check(MeshArea(view.tube) < halfArea * 0.6f, "Empty tube retains only flattened foil and its nozzle");
+            Check(view.tube.DisplayedRemaining == 0 && view.remainingLabel.text == "0%", "Empty budget clears the paint inside the tube");
+            Check(SameBounds(fullShell, ShellBounds(view.tube)), "Emptying the tube leaves its artwork unchanged");
             Check(amount.Spend(1) == 0, "Empty tube grants no paint");
             view.Advance(1f / 60);
-            Check(view.tube.SqueezePressure == 0, "Rejected spend cannot squeeze an empty tube");
             Check(rect.anchoredPosition == authoredPosition && rect.sizeDelta == authoredSize &&
                 amount.GetComponentsInChildren<Transform>(true).Length == children,
-                "Animation preserves authored transforms and creates no UI objects");
+                "Fill animation preserves authored transforms and creates no UI objects");
             WorkshopVisualChecks.CapturePreview("Tube-Empty", 941, 1672);
 
             // Settled tubes should be equally inexpensive.
@@ -119,18 +115,19 @@ public static class PaintTubeChecks
         for (int i = 0; i < 120; i++) view.Advance(1f / 60);
     }
 
-    private static float MeshArea(PaintTubeGraphic graphic)
+    private static Bounds ShellBounds(PaintTubeGraphic graphic)
     {
         Canvas.ForceUpdateCanvases();
         Mesh mesh = graphic.canvasRenderer.GetMesh();
         Vector3[] vertices = mesh.vertices;
-        int[] indices = mesh.triangles;
-        float area = 0;
-        for (int i = 0; i < indices.Length; i += 3)
-            area += Vector3.Cross(vertices[indices[i + 1]] - vertices[indices[i]],
-                vertices[indices[i + 2]] - vertices[indices[i]]).magnitude * 0.5f;
-        return area;
+        Bounds bounds = new Bounds(vertices[0], Vector3.zero);
+        // The first 40 quads are the tube image. Later vertices contain the variable pigment.
+        for (int i = 1; i < 160; i++) bounds.Encapsulate(vertices[i]);
+        return bounds;
     }
+
+    private static bool SameBounds(Bounds a, Bounds b) =>
+        (a.min - b.min).sqrMagnitude < 0.000001f && (a.max - b.max).sqrMagnitude < 0.000001f;
 
     private static void Check(bool condition, string message)
     {

@@ -11,7 +11,7 @@ Panel içindeki parçalar oransal RectTransform anchor'ları kullanır; kamera/C
 | Background | Arka plan Image sprite'ı ve rengi |
 | Target Card/Target Artwork | Hedef resmin sprite'ı, konumu ve ölçüsü |
 | Amount Panel/Title Tape/Title | Amount başlığı, font ve rengi |
-| Amount Panel/Paint Tube | Boya azaldıkça ezilen tüp; RectTransform, folyo/etiket/çizgi renkleri ve doluluk önizlemesi |
+| Amount Panel/Paint Tube | Sabit kalan metal tüp içinde boya miktarını gösteren seviye; RectTransform, folyo/etiket/çizgi renkleri ve doluluk önizlemesi |
 | Amount Panel/Percent Tape/Remaining Paint | Gerçek kalan boyanın yüzde metni, fontu ve yerleşimi |
 | Status Text | Yayma ve sonuç yazısının fontu, rengi ve ölçüsü |
 | Canvas Frame | Boyama çerçevesinin sprite'ı ve RectTransform'u |
@@ -21,9 +21,9 @@ Panel içindeki parçalar oransal RectTransform anchor'ları kullanır; kamera/C
 | Done Button/Button Label | Buton sprite'ı, fontu ve yazı stili |
 | Undo Button / Clear Button | Geri al ve tuvali temizle düğmelerinin Image'ı ve hit alanları |
 
-`UIManager` durum ve Done/Retry metnini oyun aşamasına göre değiştirir. Boya rengini `ColorSelection` üzerindeki pigment renklerinden, düğme görünümünü düğmenin Image tint'inden ayrı ayrı değiştirebilirsiniz. `WorkshopVisualController` yeni UI nesnesi oluşturmaz; seçim işaretini günceller. `PaintTubeAmountView` gerçek `PaintAmount` bütçesini izler. Çizimde boya harcandığında tüpün gövdesi arkadan uca doğru ezilir ve açık ağızdan seçili pigment çıkar; çizim durunca çıkış söner. Tüpün ölçüsü ve konumu animasyon sırasında değiştirilmez. `PaintTubeGraphic` içindeki `Preview Remaining` ile Edit Mode'da dolu/boş görünümü incelenebilir. Folyo, kağıt ve kontur renkleri, ezilme/yumuşama hızları Inspector'dan düzenlenebilir.
+`UIManager` durum ve Done/Retry metnini oyun aşamasına göre değiştirir. Boya rengini `ColorSelection` üzerindeki pigment renklerinden, düğme görünümünü düğmenin Image tint'inden ayrı ayrı değiştirebilirsiniz. `WorkshopVisualController` yeni UI nesnesi oluşturmaz; seçim işaretini günceller. `PaintTubeAmountView` gerçek `PaintAmount` bütçesini izler. Harcanan boya, sabit tüp gövdesinin içindeki pigment alanını azaltır; metal tüp ve ucu şekil değiştirmez. Seviye değişiminin yumuşaklığı Inspector'daki `Fill Response Speed` ile ayarlanabilir. `PaintTubeGraphic` içindeki `Preview Remaining` ile Edit Mode'da dolu/boş görünümü incelenebilir. Folyo, kağıt ve kontur renkleri Inspector'dan düzenlenebilir.
 
-Tüp, `MetalTube.png` sprite'ını küçük bir UI mesh üzerinde ezer; pigmenti metal iç yüzeyine boyar, sıkarken kapağı hafifçe ayırır. Parçacık, çalışma anında nesne üretimi veya texture güncellemesi kullanmaz. `PaintTubeChecks.RunBatch` gerçek bütçe tüketimi, yarım/boş gövde, seçili pigment, spatula ilerlemesinden bağımsızlık ve bellek tahsisini kontrol eder; dolu, sıkılan, yarım ve boş ekran görüntülerini `Logs/WorkshopPreview` altına kaydeder.
+Tüp, `MetalTube.png` sprite'ını sabit bir UI mesh üzerinde gösterir ve pigmenti miktarla orantılı olarak iç yüzeyden azaltır. Metal folyo, gövde ve ağız tüm miktarlarda aynı şekli korur. Parçacık, çalışma anında nesne üretimi veya texture güncellemesi kullanmaz. `PaintTubeChecks.RunBatch` gerçek bütçe tüketimi, sabit tüp silueti, yarım/boş boya seviyesi, seçili pigment, spatula ilerlemesinden bağımsızlık ve bellek tahsisini kontrol eder; dolu, yarım ve boş ekran görüntülerini `Logs/WorkshopPreview` altına kaydeder.
 
 `Canvas` üzerindeki `PaintHistory`, varsayılan olarak en fazla 8 çizgi ve yaklaşık 32 MB piksel verisi saklar. Yalnız çizgi başlangıcında dolu piksellerin boya hacmi, pigmenti, üst katmanı, katman sırası ve gevşeme durumu kaydedilir. Sürekli çizim karelerinde snapshot alınmaz. Geri al, harcanan boya ve çizim sayaçlarını da geri yükler. Çöp düğmesi tuvali/geçmişi temizler ve tüpü doldurur. DONE sonrasında iki düzenleme düğmesi kilitlenir ve geçmiş serbest bırakılır. `PaintHistoryChecks.RunBatch` katmanların tam geri yüklenmesini, boş tüpten geri almayı, bellek/çizgi sınırlarını ve bu aşama geçişini test eder.
 
