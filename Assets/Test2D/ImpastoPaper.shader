@@ -12,6 +12,7 @@ Shader "Painting/Impasto Paper"
         _ShadowStrength ("Contact shadows", Float) = 0.32
         _BladeVisible ("Blade visible", Float) = 0
         _BladeY ("Blade position", Float) = 1
+        _BackdropCanvas ("Reveal canvas artwork", Float) = 0
         _PaperSize ("Paper size and cell size", Vector) = (8.51,12.61,0.022,0.022)
     }
     SubShader
@@ -27,7 +28,7 @@ Shader "Painting/Impasto Paper"
             #include "UnityCG.cginc"
             sampler2D _PigmentTex, _HeightTex, _ReservoirTex;
             float4 _HeightTex_TexelSize, _Color, _PaperSize;
-            float _Relief, _Gloss, _ShadowStrength, _BladeY, _BladeVisible;
+            float _Relief, _Gloss, _ShadowStrength, _BladeY, _BladeVisible, _BackdropCanvas;
             struct appdata { float4 vertex:POSITION; float2 uv:TEXCOORD0; float4 color:COLOR; };
             struct v2f { float4 pos:SV_POSITION; float2 uv:TEXCOORD0; float4 color:COLOR; };
             v2f vert(appdata v)
@@ -85,7 +86,8 @@ Shader "Painting/Impasto Paper"
                 float bladeDistance=(uv.y-_BladeY)*_PaperSize.y;
                 base*=1-_BladeVisible*0.18*exp(-pow((bladeDistance+0.045)/0.08,2));
                 base+=(broad+sheen+reflection)*painted;
-                return float4(max(base,0),albedo.a);
+                float coverage = lerp(1, smoothstep(0.0001,0.008,h), _BackdropCanvas);
+                return float4(max(base,0),albedo.a * coverage);
             }
             ENDCG
         }

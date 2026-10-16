@@ -2,7 +2,17 @@
 
 Ana sahne: `Assets/Test2D/Scenes/Test 1.unity`.
 
-Kağıda basılı tutmak boya bırakır; hareket etmek aynı akışı kesintisiz bir çizgiye dağıtır. Aynı noktada beklemek kalınlığı artırır. **BOYAYI YAY** düğmesinden sonra metal spatulayı aşağı sürükle. Spatula parmak bırakıldıktan sonra hedefe yumuşakça yetişir. Sonuç ekranındaki **TEKRAR DENE** kağıdı ve boya haznesini sıfırlar.
+Kağıda basılı tutmak boya bırakır; hareket etmek aynı akışı kesintisiz bir çizgiye dağıtır. Aynı noktada beklemek kalınlığı artırır. **DONE** düğmesinden sonra metal spatulayı aşağı sürükle. Spatula parmak bırakıldıktan sonra hedefe yumuşakça yetişir. Sonuç ekranındaki **RETRY** kağıdı ve boya haznesini sıfırlar.
+
+## Atölye görünümü
+
+`WorkshopVisualController` her ana sahne yüklemesinde, Retry dahil, kullanıcı tarafından sağlanan sıcak ışıklı ahşap atölye görselini kurar. Mevcut altı renk düğmesinin tıklanabilir alanları görseldeki boya gözlerine taşınır. Seçili boyanın altında küçük bir işaret bulunur. Yedi kırmızı `Amount` parçası kalan boya oranına göre kararır. Lacivert bölüm oyun durumunu, krem düğme ise aynı `UIManager` Done/Retry akışını gösterir.
+
+Referans görsel `Assets/Test2D/Resources/Workshop/WorkshopBackground.png` altında tutulur. Boya simülasyonunun dünya ölçüleri değiştirilmez; ortografik kamera bu alanı referanstaki tuval içine yansıtır. UI konumları normalize edilmiş aynı koordinatları kullanır. Boş bölgelerde shader arka plandaki tuval dokumasını gösterir; renk ve kalınlık gerçek simülasyondan çizilir. Temiz pigment ve puan hesapları arka planı içermez. 9:16 portre ana tasarımdır; farklı ekran oranlarında tüm düzen aynı koordinatlarla ölçeklenir. Sol üstteki örnek resim bu seviye için referans görselin bir parçasıdır; farklı seviye hedefleri için ayrı bir thumbnail katmanı gerekir.
+
+`Tools → Painting → Check Workshop Visual` görünüm, tuval hizası, gerçek UI raycast alanları ve renk seçimini doğrular; başlangıç ve boyalı ekran görüntülerini `Logs/WorkshopPreview` altına kaydeder. Ana mekanik kontrolü Done, spatula, sonuç ve Retry sonrasında atölyenin tek kez kurulmasını da sınar.
+
+Unity 6000.3.8f1 izole editör doğrulaması: 540×960 ve 540×1200 görünüm kontrolleri 33/33; tam mekanik akışı 67 kontrol içerir. Çizim performansı senaryosunda döküş ortalaması 0,502 ms, yerleşme 0,639 ms, texture gönderimi 0,947 ms; döngü içi managed allocation 0 bayt. Bu ölçüm editördeki CPU işini raporlar, telefonda FPS garantisi değildir. Görsellerin kaynağı ve kullanılan üretim prompt'u `Docs/WorkshopAssets.md` içindedir.
 
 ## Paint paketi ile ilişki
 

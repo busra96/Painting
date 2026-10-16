@@ -22,6 +22,7 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
     public int Width => width;
     public int Height => height;
     public Texture HeightTexture => heightTexture;
+    public bool RevealBackdropCanvas { get; set; }
     public int SettlingTilesProcessedLastStep { get; private set; }
     public int RecoloredPixelsLastFlush { get; private set; }
     public int UploadCount { get; private set; }
@@ -128,6 +129,7 @@ public sealed class ImpastoPaintSurface : MonoBehaviour
         paintMaterial.SetTexture("_HeightTex", heightTexture);
         paintMaterial.SetTexture("_PigmentTex", colorTexture);
         paintMaterial.SetTexture("_ReservoirTex", reservoirTexture);
+        paintMaterial.SetFloat("_BackdropCanvas", RevealBackdropCanvas ? 1 : 0);
         paintMaterial.SetVector("_PaperSize", new Vector4(paper.bounds.size.x, paper.bounds.size.y, dx, dy));
         paintMaterial.SetFloat("_Relief", settings != null ? settings.ReliefHeight : 0.075f);
         paintMaterial.SetFloat("_Gloss", settings != null ? settings.WetGloss : 0.32f);

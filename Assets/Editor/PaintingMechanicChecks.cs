@@ -133,6 +133,7 @@ public static class PaintingMechanicChecks
                 Check(comparer.LastScore >= 0 && comparer.LastScore <= 100, "Final similarity is bounded");
                 Capture("Impasto-After");
                 Capture("Animation/Frame-17", false);
+                WorkshopVisualChecks.CapturePreview("Workshop-Result");
                 ui.DoneButton.onClick.Invoke();
                 stage = 4;
             }
@@ -142,6 +143,11 @@ public static class PaintingMechanicChecks
                 if (restarted == null || restarted == surface || !restarted.IsReady) return;
                 Check(restarted.DepositedVolume == 0 && restarted.MeasureVolume() == 0, "Retry clears pigment, thickness and blade reservoir");
                 Check(Object.FindFirstObjectByType<PaintAmount>().UsedAmount == 0, "Retry resets fractional paint budget");
+                var workshop = Object.FindFirstObjectByType<WorkshopVisualController>();
+                Check(workshop != null && workshop.IsReady, "Retry restores the workshop controls");
+                Check(Object.FindObjectsOfType<WorkshopVisualController>().Length == 1,
+                    "Retry creates exactly one workshop presentation");
+                WorkshopVisualChecks.CapturePreview("Workshop-Retry");
                 Finish(null);
             }
         }

@@ -13,6 +13,7 @@ public class ColorSelection : MonoBehaviour
     public Button RedButton, YellowButton, GreenButton, PinkButton, BlueButton, OrangeButton, WhiteButton;
     public Color RedColor, YellowColor, GreenColor, BlueColor, OrangeColor, WhiteColor, PinkColor;
     public GameObject ShadowObj;
+    [HideInInspector] public bool UseArtworkButtons;
     private Button[] buttons;
     private ColorType[] types;
     private Color[] colors;
@@ -32,7 +33,8 @@ public class ColorSelection : MonoBehaviour
         {
             if (buttons[i] == null) continue;
             int index = i;
-            if (buttons[i].targetGraphic != null) buttons[i].targetGraphic.color = colors[i];
+            if (buttons[i].targetGraphic != null)
+                buttons[i].targetGraphic.color = UseArtworkButtons ? new Color(1, 1, 1, 0.01f) : colors[i];
             scales[i] = buttons[i].transform.localScale;
             listeners[i] = () => Choose(index);
             buttons[i].onClick.AddListener(listeners[i]);

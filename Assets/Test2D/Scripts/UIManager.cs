@@ -73,7 +73,7 @@ public class UIManager : MonoBehaviour
         if (phase == Phase.Painting)
         {
             if (DoneButton != null) DoneButton.interactable = RaycastAndSpawn != null && RaycastAndSpawn.PaintCount > 0;
-            if (buttonLabel != null) buttonLabel.text = amount != null && amount.isFull ? "BOYA HAZIR - YAY" : "BOYAYI YAY";
+            if (buttonLabel != null) buttonLabel.text = "DONE";
             if (statusLabel != null && amount != null)
                 statusLabel.text = RaycastAndSpawn != null && RaycastAndSpawn.PaintCount == 0 ? "BASILI TUT: BOYA BIRAK" :
                     "BOYA  " + Mathf.CeilToInt(amount.RemainingAmount) + " / " + Mathf.CeilToInt(amount.MaxAmount);
@@ -145,7 +145,7 @@ public class UIManager : MonoBehaviour
         if (DoneButton == null) return;
         DoneButton.gameObject.SetActive(true);
         DoneButton.interactable = true;
-        if (buttonLabel != null) buttonLabel.text = "TEKRAR DENE";
+        if (buttonLabel != null) buttonLabel.text = "RETRY";
     }
 
     private void OnDestroy()
