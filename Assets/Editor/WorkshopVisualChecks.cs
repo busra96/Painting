@@ -35,6 +35,18 @@ public static class WorkshopVisualChecks
     {
         SessionState.SetBool(Key, true);
         EditorSceneManager.OpenScene(ScenePath);
+        WorkshopVisualController authored = Object.FindFirstObjectByType<WorkshopVisualController>();
+        if (authored == null || authored.transform.Find("Workshop") == null || authored.backgroundImage == null)
+        {
+            Finish("The workshop must exist as editable Canvas objects before entering Play mode.");
+            return;
+        }
+        if (authored.selection.RedButton == null || authored.amountSegments.Length != 7)
+        {
+            Finish("Serialized workshop control references are incomplete.");
+            return;
+        }
+        Debug.Log("WORKSHOP AUTHORED CHECK: Layout, artwork and control references exist in Edit mode.");
         EditorApplication.playModeStateChanged -= OnStateChanged;
         EditorApplication.playModeStateChanged += OnStateChanged;
         EditorApplication.isPlaying = true;
@@ -58,19 +70,17 @@ public static class WorkshopVisualChecks
             if (visual == null || !visual.IsReady || surface == null || !surface.IsReady) return;
             EditorApplication.update -= Tick;
 
-            Check(visual.BackgroundRenderer != null && visual.BackgroundRenderer.sprite != null,
-                "Workshop background is loaded");
-            Bounds backgroundBounds = visual.BackgroundRenderer.bounds;
-            Vector3 backgroundMin = Camera.main.WorldToViewportPoint(backgroundBounds.min);
-            Vector3 backgroundMax = Camera.main.WorldToViewportPoint(backgroundBounds.max);
-            Check(backgroundMin.x <= 0.01f && backgroundMin.y <= 0.01f &&
-                backgroundMax.x >= 0.99f && backgroundMax.y >= 0.99f,
-                "Workshop background covers the portrait viewport");
+            Check(visual.backgroundImage != null && visual.backgroundImage.sprite != null &&
+                visual.backgroundImage.transform.IsChildOf(visual.canvas.transform),
+                "Background is an editable Canvas Image");
+            Check(GameObject.Find("Palette Panel") != null && GameObject.Find("Panel") == null &&
+                GameObject.Find("DoneAndEraserPanel") == null,
+                "Legacy UI panels are removed from the scene");
 
             SpriteRenderer paper = GameObject.Find("Paintable Book  Paint").GetComponent<SpriteRenderer>();
             Vector3 paperMin = Camera.main.WorldToViewportPoint(paper.bounds.min);
             Vector3 paperMax = Camera.main.WorldToViewportPoint(paper.bounds.max);
-            Rect expected = WorkshopVisualController.PaperViewport;
+            Rect expected = visual.CurrentPaperViewport;
             Check(Mathf.Abs(paperMin.x - expected.xMin) < 0.001f && Mathf.Abs(paperMin.y - expected.yMin) < 0.001f &&
                 Mathf.Abs(paperMax.x - expected.xMax) < 0.001f && Mathf.Abs(paperMax.y - expected.yMax) < 0.001f,
                 "Paintable surface aligns with the framed canvas");
@@ -83,8 +93,9 @@ public static class WorkshopVisualChecks
                 selection.PinkButton, selection.BlueButton, selection.OrangeButton };
             foreach (Button button in buttons)
                 Check(button != null && button.gameObject.activeInHierarchy &&
-                    button.targetGraphic.raycastTarget && button.targetGraphic.color.a < 0.02f,
-                    button.name + " has a live hit area above the reference paint");
+                    button.targetGraphic.raycastTarget && button.targetGraphic.color.a > 0.9f &&
+                    (button.targetGraphic as Image)?.sprite != null,
+                    button.name + " has a separately editable paint sprite and hit area");
 
             Check(visual.AmountSegmentCount == 7, "Amount display has seven live segments");
             for (int i = 1; i <= 7; i++)
@@ -104,6 +115,32 @@ public static class WorkshopVisualChecks
             Check(selection.ColorType == ColorType.Yellow && selection.GetOriginalColor() == selection.YellowColor,
                 "Palette button selects the pigment used by drawing");
             selection.RedButton.onClick.Invoke();
+
+            RectTransform statusRect = ui.StatusLabel.rectTransform;
+            Vector2 authoredPosition = statusRect.anchoredPosition;
+            Vector2 editedPosition = authoredPosition + new Vector2(11, 7);
+            statusRect.anchoredPosition = editedPosition;
+            Image redImage = selection.RedButton.targetGraphic as Image;
+            Color authoredTint = redImage.color;
+            Color editedTint = new Color(0.76f, 0.12f, 0.09f);
+            redImage.color = editedTint;
+            visual.SendMessage("LateUpdate");
+            selection.SelectColor(ColorType.Red);
+            Check(statusRect.anchoredPosition == editedPosition && redImage.color == editedTint,
+                "Inspector position and sprite tint edits survive runtime visual updates");
+            statusRect.anchoredPosition = authoredPosition;
+            redImage.color = authoredTint;
+            RectTransform frameRect = visual.paintRegion.parent as RectTransform;
+            Check(frameRect != null && frameRect.name == "Canvas Frame",
+                "Moving the editable canvas frame also moves its paint region");
+            Vector2 framePosition = frameRect.anchoredPosition;
+            Vector2 previousCenter = visual.CurrentPaperViewport.center;
+            frameRect.anchoredPosition += new Vector2(12, 8);
+            visual.RefreshLayout();
+            Check(Vector2.Distance(previousCenter, visual.CurrentPaperViewport.center) > 0.001f,
+                "Camera follows an edited canvas position without rebuilding UI");
+            frameRect.anchoredPosition = framePosition;
+            visual.RefreshLayout();
 
             CapturePreview("Workshop-Initial");
             surface.ClearPaint();
@@ -126,36 +163,22 @@ public static class WorkshopVisualChecks
     public static void CapturePreview(string name, int width = 540, int height = 960)
     {
         Camera camera = Camera.main;
-        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
-        RenderMode oldMode = canvas.renderMode;
-        Camera oldCanvasCamera = canvas.worldCamera;
-        float oldPlane = canvas.planeDistance;
         RenderTexture oldTarget = camera.targetTexture;
         RenderTexture oldActive = RenderTexture.active;
         var target = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
         var snapshot = new Texture2D(width, height, TextureFormat.RGB24, false);
-        GameObject uiCameraObject = new GameObject("Workshop Preview UI Camera");
-        Camera uiCamera = uiCameraObject.AddComponent<Camera>();
-        uiCamera.CopyFrom(camera);
-        uiCamera.clearFlags = CameraClearFlags.Depth;
-        uiCamera.cullingMask = 1 << LayerMask.NameToLayer("UI");
         try
         {
-            canvas.renderMode = RenderMode.ScreenSpaceCamera;
-            canvas.worldCamera = uiCamera;
-            canvas.planeDistance = 0.5f;
             camera.targetTexture = target;
-            uiCamera.targetTexture = target;
             Object.FindFirstObjectByType<WorkshopVisualController>().RefreshLayout();
             Canvas.ForceUpdateCanvases();
             camera.Render();
-            uiCamera.Render();
             RenderTexture.active = target;
             snapshot.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0);
             snapshot.Apply(false);
             Vector3 min = camera.WorldToViewportPoint(ImpastoPaintSurface.Active.GetComponent<SpriteRenderer>().bounds.min);
             Vector3 max = camera.WorldToViewportPoint(ImpastoPaintSurface.Active.GetComponent<SpriteRenderer>().bounds.max);
-            Rect expected = WorkshopVisualController.PaperViewport;
+            Rect expected = Object.FindFirstObjectByType<WorkshopVisualController>().CurrentPaperViewport;
             Check(Mathf.Abs(min.x - expected.xMin) < 0.001f && Mathf.Abs(min.y - expected.yMin) < 0.001f &&
                 Mathf.Abs(max.x - expected.xMax) < 0.001f && Mathf.Abs(max.y - expected.yMax) < 0.001f,
                 "Canvas remains aligned while rendering " + width + "x" + height);
@@ -167,12 +190,8 @@ public static class WorkshopVisualChecks
         {
             camera.targetTexture = oldTarget;
             RenderTexture.active = oldActive;
-            canvas.renderMode = oldMode;
-            canvas.worldCamera = oldCanvasCamera;
-            canvas.planeDistance = oldPlane;
             Object.FindFirstObjectByType<WorkshopVisualController>().RefreshLayout();
             target.Release();
-            Object.DestroyImmediate(uiCameraObject);
             Object.DestroyImmediate(target);
             Object.DestroyImmediate(snapshot);
         }
@@ -189,7 +208,8 @@ public static class WorkshopVisualChecks
     {
         var pointer = new PointerEventData(EventSystem.current)
         {
-            position = RectTransformUtility.WorldToScreenPoint(null, button.transform.position)
+            position = RectTransformUtility.WorldToScreenPoint(button.GetComponentInParent<Canvas>().worldCamera,
+                button.transform.position)
         };
         var hits = new List<RaycastResult>();
         EventSystem.current.RaycastAll(pointer, hits);

@@ -11,6 +11,7 @@ public class UIManager : MonoBehaviour
     public GameObject ShadowDecalObj;
     public Test_RaycastSpawn_CameraPerspective RaycastAndSpawn;
     public ColorSelection ColorSelection;
+    public TMP_Text StatusLabel;
     private enum Phase { Painting, Spreading, Evaluating, Result }
     private Phase phase;
     private PaintAmount amount;
@@ -22,7 +23,8 @@ public class UIManager : MonoBehaviour
     private void Start()
     {
         amount = FindFirstObjectByType<PaintAmount>();
-        if (amount != null && amount.PaintAmountSlider != null)
+        statusLabel = StatusLabel;
+        if (statusLabel == null && amount != null && amount.PaintAmountSlider != null)
             statusLabel = amount.PaintAmountSlider.GetComponentInChildren<TMP_Text>(true);
         if (statusLabel != null)
         {
