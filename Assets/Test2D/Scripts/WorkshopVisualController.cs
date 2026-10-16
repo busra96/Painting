@@ -13,16 +13,12 @@ public sealed class WorkshopVisualController : MonoBehaviour
     public Image backgroundImage;
     public PaintAmount paintAmount;
     public ColorSelection selection;
-    public Image[] amountSegments;
+    public PaintTubeAmountView amountTube;
     public RectTransform selectedMark;
     public RectTransform[] paletteButtons;
-    public Color fullSegmentColor = new Color(0.82f, 0.16f, 0.10f);
-    public Color emptySegmentColor = new Color(0.43f, 0.33f, 0.23f);
 
     public bool IsReady { get; private set; }
-    public int AmountSegmentCount => amountSegments != null ? amountSegments.Length : 0;
     public Rect CurrentPaperViewport { get; private set; }
-    private float previousRemaining = -1;
     private ColorType previousColor = (ColorType)(-1);
     private Vector2 markerOffset;
     private readonly Vector3[] regionCorners = new Vector3[4];
@@ -42,7 +38,7 @@ public sealed class WorkshopVisualController : MonoBehaviour
     {
         if (!Application.isPlaying) { RefreshLayout(); return; }
         if (mainCamera == null || canvas == null || paper == null || paintRegion == null ||
-            selection == null || amountSegments == null || paletteButtons == null) return;
+            selection == null || amountTube == null || paletteButtons == null) return;
         RefreshLayout();
         IsReady = true;
         UpdateVisuals();
@@ -78,15 +74,6 @@ public sealed class WorkshopVisualController : MonoBehaviour
 
     private void UpdateVisuals()
     {
-        float remaining = paintAmount != null ? paintAmount.RemainingFraction : 1;
-        if (!Mathf.Approximately(previousRemaining, remaining))
-        {
-            for (int i = 0; i < amountSegments.Length; i++)
-                if (amountSegments[i] != null)
-                    amountSegments[i].color = Color.Lerp(emptySegmentColor, fullSegmentColor,
-                        Mathf.Clamp01(remaining * amountSegments.Length - i));
-            previousRemaining = remaining;
-        }
         if (selectedMark == null) return;
         if (previousColor != selection.ColorType)
         {

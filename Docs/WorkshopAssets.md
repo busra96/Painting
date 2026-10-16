@@ -7,7 +7,8 @@ Sahne: `Assets/Test2D/Scenes/Test 1.unity`, hiyerarşi: `Canvas/Workshop`.
 | Background | Arka plan Image sprite'ı ve rengi |
 | Target Card/Target Artwork | Hedef resmin sprite'ı, konumu ve ölçüsü |
 | Amount Panel/Title | Amount başlığı, font ve rengi |
-| Amount Panel/Amount Segments | Yedi ayrı miktar Image'ı ve konumları |
+| Amount Panel/Paint Tube | Boya azaldıkça ezilen tüp; RectTransform, folyo/etiket/çizgi renkleri ve doluluk önizlemesi |
+| Amount Panel/Remaining Paint | Gerçek kalan boyanın yüzde metni, fontu ve yerleşimi |
 | Status Panel/Status Text | Durum yazısının fontu, rengi ve ölçüsü |
 | Canvas Frame | Boyama çerçevesinin sprite'ı ve RectTransform'u |
 | Canvas Frame/Paint Area | Gerçek boyanın eşleneceği alan; çerçeveyi taşırken otomatik birlikte taşınır |
@@ -15,7 +16,9 @@ Sahne: `Assets/Test2D/Scenes/Test 1.unity`, hiyerarşi: `Canvas/Workshop`.
 | Palette Panel/Selected Paint | Seçim işaretinin görünümü ve ilk boyaya göre uzaklığı |
 | Done Button/Button Label | Buton sprite'ı, fontu ve yazı stili |
 
-`UIManager` durum ve Done/Retry metnini oyun aşamasına göre değiştirir. Boya rengini `ColorSelection` üzerindeki pigment renklerinden, düğme görünümünü düğmenin Image tint'inden ayrı ayrı değiştirebilirsiniz. `WorkshopVisualController` yeni UI nesnesi oluşturmaz; miktar renklerini ve seçim işaretini günceller. Miktarın dolu/boş renkleri bu bileşende Inspector'dan ayarlanır.
+`UIManager` durum ve Done/Retry metnini oyun aşamasına göre değiştirir. Boya rengini `ColorSelection` üzerindeki pigment renklerinden, düğme görünümünü düğmenin Image tint'inden ayrı ayrı değiştirebilirsiniz. `WorkshopVisualController` yeni UI nesnesi oluşturmaz; seçim işaretini günceller. `PaintTubeAmountView` gerçek `PaintAmount` bütçesini izler. Çizimde boya harcandığında tüpün gövdesi arkadan uca doğru ezilir ve açık ağızdan seçili pigment çıkar; çizim durunca çıkış söner. Tüpün ölçüsü ve konumu animasyon sırasında değiştirilmez. `PaintTubeGraphic` içindeki `Preview Remaining` ile Edit Mode'da dolu/boş görünümü incelenebilir. Folyo, kağıt ve kontur renkleri, ezilme/yumuşama hızları Inspector'dan düzenlenebilir.
+
+Tüp, mat renkli küçük bir UI mesh'idir; yeni raster görsel, parçacık, çalışma anında nesne üretimi veya texture güncellemesi kullanmaz. Eski yedi miktar parçası kaldırılır. **Tools → Painting → Replace Amount Segments With Paint Tube** mevcut Workshop'ta yalnız Amount çocuklarını dönüştürür; zaten tüp varsa elle düzenlenmiş nesneleri yeniden kurmaz. `PaintTubeChecks.RunBatch` gerçek bütçe tüketimi, yarım/boş gövde, seçili pigment, spatula ilerlemesinden bağımsızlık ve bellek tahsisini kontrol eder; dolu, sıkılan, yarım ve boş ekran görüntülerini `Logs/WorkshopPreview` altına kaydeder.
 
 Eski tek parça UI arka planı ve Retry örtüsü kaldırılmıştır. Görseller `Resources` yüklemesi yerine sahnedeki sprite referanslarıyla kullanılır. `WorkshopSceneAuthoring` mevcut bir Workshop'u yeniden kurmaz; elle yapılan tasarımı silmez.
 
@@ -37,6 +40,6 @@ Dosya: `Assets/Test2D/UI/Art/PaintedFrame.png`. Tuval, miktar, durum, palet ve b
 
 ### MattePaintDab.png
 
-Dosya: `Assets/Test2D/UI/Art/MattePaintDab.png`. Image tint ile renklenen boya düğmeleri ve miktar parçaları.
+Dosya: `Assets/Test2D/UI/Art/MattePaintDab.png`. Image tint ile renklenen boya düğmeleri.
 
 > Use case: stylized-concept. Asset type: tintable 2D Unity palette button sprite. Match the handmade matte gouache style of the studio and wooden frame references. One small isolated neutral warm-white paint dab seen from above: an irregular rounded puddle with three broad overlapping brush strokes and a little curled ridge. Simple chunky silhouette, subtle cool gray shadows painted by hand, a few broken dry-brush marks at edges. Limited tonal range so Unity can tint it into red, yellow, green, magenta, blue and orange. Matte actual paint, flat illustration on paper, charming handmade asymmetry. Centered circular composition with minimal transparent padding. Genuinely transparent background. No text, no palette board, no glossy specular streaks, no 3D render, no plastic, no extra objects, no cast shadow outside the dab.

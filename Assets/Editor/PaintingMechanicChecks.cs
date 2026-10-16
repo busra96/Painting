@@ -145,6 +145,9 @@ public static class PaintingMechanicChecks
                 Check(Object.FindFirstObjectByType<PaintAmount>().UsedAmount == 0, "Retry resets fractional paint budget");
                 var workshop = Object.FindFirstObjectByType<WorkshopVisualController>();
                 Check(workshop != null && workshop.IsReady, "Retry restores the workshop controls");
+                Check(workshop.amountTube != null && workshop.amountTube.tube.DisplayedRemaining == 1 &&
+                    workshop.amountTube.tube.SqueezePressure == 0,
+                    "Retry restores a full idle paint tube");
                 Check(Object.FindObjectsOfType<WorkshopVisualController>().Length == 1,
                     "Retry creates exactly one workshop presentation");
                 WorkshopVisualChecks.CapturePreview("Workshop-Retry");

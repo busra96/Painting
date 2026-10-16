@@ -41,7 +41,7 @@ public static class WorkshopVisualChecks
             Finish("The workshop must exist as editable Canvas objects before entering Play mode.");
             return;
         }
-        if (authored.selection.RedButton == null || authored.amountSegments.Length != 7)
+        if (authored.selection.RedButton == null || authored.amountTube == null || authored.amountTube.tube == null)
         {
             Finish("Serialized workshop control references are incomplete.");
             return;
@@ -97,9 +97,8 @@ public static class WorkshopVisualChecks
                     (button.targetGraphic as Image)?.sprite != null,
                     button.name + " has a separately editable paint sprite and hit area");
 
-            Check(visual.AmountSegmentCount == 7, "Amount display has seven live segments");
-            for (int i = 1; i <= 7; i++)
-                Check(GameObject.Find("Amount Segment " + i) != null, "Amount segment " + i + " is present");
+            Check(visual.amountTube.transform.IsChildOf(visual.canvas.transform), "Paint tube is an editable Canvas child");
+            Check(GameObject.Find("Amount Segments") == null, "Old amount segments are removed");
 
             UIManager ui = Object.FindFirstObjectByType<UIManager>();
             TMP_Text doneLabel = ui.DoneButton.GetComponentInChildren<TMP_Text>(true);

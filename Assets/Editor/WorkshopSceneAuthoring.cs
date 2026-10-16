@@ -100,15 +100,6 @@ public static class WorkshopSceneAuthoring
         Image amountBoard = Board("Amount Panel", root, 587, 126, 548, 145);
         TMP_Text title = Label("Title", amountBoard.transform, "Amount", 34, Ink);
         Local(title.rectTransform, 0, 35, 430, 42);
-        RectTransform row = Rect("Amount Segments", amountBoard.transform);
-        Local(row, 0, -21, 448, 45);
-        Image[] segments = new Image[7];
-        for (int i = 0; i < segments.Length; i++)
-        {
-            segments[i] = Image("Amount Segment " + (i + 1), row, dab);
-            Local(segments[i].rectTransform, -192 + 64 * i, 0, 58, 37);
-            segments[i].color = new Color(0.82f, 0.16f, 0.10f);
-        }
         PaintAmount amount = amountBoard.gameObject.AddComponent<PaintAmount>();
         amount.MaxAmount = maxAmount;
         Slider amountData = amountBoard.gameObject.AddComponent<Slider>();
@@ -119,6 +110,7 @@ public static class WorkshopSceneAuthoring
         amountData.minValue = 0;
         amountData.maxValue = amountData.value = 100;
         amount.PaintAmountSlider = amountData;
+        PaintTubeAmountView tube = CreatePaintTube(amount, selection);
 
         Image status = Board("Status Panel", root, 587, 268, 548, 100);
         status.color = new Color(0.30f, 0.37f, 0.42f);
@@ -171,7 +163,7 @@ public static class WorkshopSceneAuthoring
         controller.mainCamera = camera; controller.canvas = canvas; controller.paper = paper;
         controller.paintRegion = paintRegion; controller.backgroundImage = background;
         controller.paintAmount = amount; controller.selection = selection;
-        controller.amountSegments = segments; controller.selectedMark = marker.rectTransform;
+        controller.amountTube = tube; controller.selectedMark = marker.rectTransform;
         controller.paletteButtons = new RectTransform[buttons.Length];
         for (int i = 0; i < buttons.Length; i++) controller.paletteButtons[i] = buttons[i].GetComponent<RectTransform>();
 
@@ -183,7 +175,47 @@ public static class WorkshopSceneAuthoring
         EditorSceneManager.MarkSceneDirty(canvas.gameObject.scene);
         EditorSceneManager.SaveScene(canvas.gameObject.scene, ScenePath);
         AssetDatabase.SaveAssets();
-        Debug.Log("EDITABLE WORKSHOP SAVED: Canvas/Workshop with separate sprites, buttons, labels and amount segments.");
+        Debug.Log("EDITABLE WORKSHOP SAVED: Canvas/Workshop with separate sprites, buttons, labels and paint tube.");
+    }
+
+    public static void InstallPaintTubeBatch()
+    {
+        try { InstallPaintTube(); EditorApplication.Exit(0); }
+        catch (Exception exception) { Debug.LogException(exception); EditorApplication.Exit(1); }
+    }
+
+    [MenuItem("Tools/Painting/Replace Amount Segments With Paint Tube")]
+    public static void InstallPaintTube()
+    {
+        if (!Application.isBatchMode && !EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+        EditorSceneManager.OpenScene(ScenePath);
+        WorkshopVisualController controller = Object.FindFirstObjectByType<WorkshopVisualController>();
+        if (controller == null) throw new InvalidOperationException("Author the Workshop Canvas first.");
+        if (controller.amountTube != null) return; // Never rebuild a manually edited tube.
+        PaintAmount amount = controller.paintAmount;
+        Transform oldSegments = amount.transform.Find("Amount Segments");
+        if (oldSegments != null) Object.DestroyImmediate(oldSegments.gameObject);
+        controller.amountTube = CreatePaintTube(amount, controller.selection);
+        EditorSceneManager.MarkSceneDirty(controller.gameObject.scene);
+        EditorSceneManager.SaveScene(controller.gameObject.scene, ScenePath);
+        Debug.Log("PAINT TUBE SAVED: only the Amount children changed; existing Canvas layout retained.");
+    }
+
+    private static PaintTubeAmountView CreatePaintTube(PaintAmount amount, ColorSelection selection)
+    {
+        TMP_Text title = amount.transform.Find("Title").GetComponent<TMP_Text>();
+        font = title.font;
+        // Leave the authored title position and the enclosing panel untouched.
+        RectTransform graphicRect = Rect("Paint Tube", amount.transform);
+        Local(graphicRect, 0, -23, 460, 90);
+        graphicRect.gameObject.AddComponent<CanvasRenderer>();
+        PaintTubeGraphic graphic = graphicRect.gameObject.AddComponent<PaintTubeGraphic>();
+        graphic.raycastTarget = false;
+        TMP_Text percent = Label("Remaining Paint", amount.transform, "100%", 22, Ink);
+        Local(percent.rectTransform, 193, 35, 76, 32);
+        PaintTubeAmountView view = graphicRect.gameObject.AddComponent<PaintTubeAmountView>();
+        view.amount = amount; view.selection = selection; view.tube = graphic; view.remainingLabel = percent;
+        return view;
     }
 
     private static void ConfigureTexture(string file, int size, Vector4 border)
