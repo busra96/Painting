@@ -18,13 +18,13 @@ MonoBehaviour:
   PourUnitsPerWorldUnit: 1.8
   FilmThickness: 0.085
   FeatherDistance: 0.4
-  PigmentOpacity: 65
+  PigmentOpacity: 90
   LateralFlow: 0.012
-  ColorRibbons: 0.68
+  ColorRibbons: 0.95
   SurfaceVariation: 0.32
-  ReliefHeight: 0.075
+  ReliefHeight: 0.06
   WetGloss: 0.32
-  ContactShadow: 0.32
+  ContactShadow: 0.14
   PaintDistancePerDab: 2.8
   MaxPaintDistance: 14
   PaintFadeFraction: 0.25

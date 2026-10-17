@@ -43,6 +43,8 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
     private Color lastDepositColor;
     private bool hasDepositColor;
     private float[] flowEdges, flowUpper, flowVolume;
+    private float[] depositWeights;
+    private int depositStampWidth, depositStampHeight;
     private const int DomeSize = 65;
     private float[] domeKernel;
     private Vector3[] flowPigment;
@@ -79,7 +81,7 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
         paintable = GetComponent<CwPaintableSpriteTexture>();
         if (paper == null || paper.sprite == null || paintable == null || paintable.Current == null) return;
         localBounds = paper.sprite.bounds;
-        width = resolution;
+        width = Application.isMobilePlatform ? Mathf.Min(resolution, 384) : resolution;
         height = Mathf.RoundToInt(width * localBounds.size.y / localBounds.size.x);
         dx = paper.bounds.size.x / width;
         dy = paper.bounds.size.y / height;
@@ -108,15 +110,20 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
             float irregularity = 1 + 0.025f * Mathf.Sin(nx * 3 + ny * 4) + 0.015f * Mathf.Sin(nx * 7 - ny * 5);
             domeKernel[y * DomeSize + x] = Mathf.Pow(Mathf.Max(0, 1 - (nx * nx + ny * ny) * irregularity), 1.5f);
         }
+        float stampRadiusX = BrushRadius / dx * 1.2f;
+        float stampRadiusY = BrushRadius / dy * 1.2f;
+        depositStampWidth = Mathf.CeilToInt(stampRadiusX * 2) + 2;
+        depositStampHeight = Mathf.CeilToInt(stampRadiusY * 2) + 2;
+        depositWeights = new float[depositStampWidth * depositStampHeight];
         contactTexture = new float[thickness.Length];
         for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++)
         {
             float worldX = (x + 0.5f) * dx;
             float worldY = (y + 0.5f) * dy;
-            float bend = Mathf.PerlinNoise(worldX * 0.9f, worldY * 1.7f) * 0.6f;
-            contactTexture[y * width + x] = 0.85f * Mathf.PerlinNoise(worldX * 20.3f + bend, worldY * 0.75f + 12.7f)
-                + 0.15f * Mathf.PerlinNoise(worldX * 67.1f + bend, worldY * 4.3f + 4.3f);
+            float broadGrain = Mathf.PerlinNoise(worldX * 20.3f, worldY * 0.75f + 12.7f);
+            float fineGrain = 0.5f + 0.5f * Mathf.Sin(worldX * 67.1f + worldY * 4.3f);
+            contactTexture[y * width + x] = 0.85f * broadGrain + 0.15f * fineGrain;
         }
         bladePigment = new Vector3[width];
         skinPigment = new Vector3[width];
@@ -134,6 +141,7 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
         paintMaterial.SetFloat("_Relief", settings != null ? settings.ReliefHeight : 0.075f);
         paintMaterial.SetFloat("_Gloss", settings != null ? settings.WetGloss : 0.32f);
         paintMaterial.SetFloat("_ShadowStrength", settings != null ? settings.ContactShadow : 0.32f);
+        paintMaterial.SetFloat("_CoatOpacity", Opacity * 1.8f);
         paper.sharedMaterial = paintMaterial;
         IsReady = true;
         IncludeChanged(0, 0, width - 1, height - 1);
@@ -161,6 +169,12 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
     public void Deposit(Vector3 world, Color color, float units, Vector2 direction)
     {
         if (!IsReady || IsSpreading || units <= 0 || !Contains(world)) return;
+        DepositInside(world, color, units, direction);
+    }
+
+    internal void DepositInside(Vector3 world, Color color, float units, Vector2 direction)
+    {
+        if (!IsReady || IsSpreading || units <= 0) return;
         using (DepositMarker.Auto())
         {
             Vector2 center = GridPoint(world);
@@ -170,13 +184,24 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
             int x1 = Mathf.Min(width - 1, Mathf.CeilToInt(center.x + rx * 1.2f));
             int y0 = Mathf.Max(0, Mathf.FloorToInt(center.y - ry * 1.2f));
             int y1 = Mathf.Min(height - 1, Mathf.CeilToInt(center.y + ry * 1.2f));
+            int stampWidth = x1 - x0 + 1, stampHeight = y1 - y0 + 1;
+            EnsureDepositCapacity(stampWidth, stampHeight);
             float weight = 0;
             for (int y = y0; y <= y1; y++)
-            for (int x = x0; x <= x1; x++) weight += Dome(x, y, center, rx, ry);
+            {
+                int row = (y - y0) * depositStampWidth;
+                for (int x = x0; x <= x1; x++)
+                {
+                    float value = Dome(x, y, center, rx, ry);
+                    depositWeights[row + x - x0] = value;
+                    weight += value;
+                }
+            }
             if (weight <= 0) return;
             float volume = units * UnitVolume;
             float scale = volume / (weight * cellArea);
             Vector3 density = Absorption(color);
+            CaptureHistoryTiles(x0, y0, x1, y1);
             if (!hasDepositColor || color != lastDepositColor)
             {
                 depositOrder++;
@@ -186,7 +211,7 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
             for (int y = y0; y <= y1; y++)
             for (int x = x0; x <= x1; x++)
             {
-                float amount = Dome(x, y, center, rx, ry) * scale;
+                float amount = depositWeights[(y - y0) * depositStampWidth + x - x0] * scale;
                 if (amount <= 0) continue;
                 int index = y * width + x;
                 Vector3 addedMass = density * amount;
@@ -200,6 +225,14 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
             IncludeChanged(x0, y0, x1, y1);
             dirty = true;
         }
+    }
+
+    private void EnsureDepositCapacity(int stampWidth, int stampHeight)
+    {
+        if (stampWidth <= depositStampWidth && stampHeight <= depositStampHeight) return;
+        depositStampWidth = Mathf.Max(depositStampWidth, stampWidth);
+        depositStampHeight = Mathf.Max(depositStampHeight, stampHeight);
+        depositWeights = new float[depositStampWidth * depositStampHeight];
     }
 
     private float Dome(int x, int y, Vector2 center, float rx, float ry)
@@ -236,6 +269,7 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
     {
         int x0 = tile % tilesX * TileSize, y0 = tile / tilesX * TileSize;
         int x1 = Mathf.Min(width, x0 + TileSize), y1 = Mathf.Min(height, y0 + TileSize);
+        CaptureHistoryTiles(x0, y0, Mathf.Min(width - 1, x1), Mathf.Min(height - 1, y1));
         bool moved = false;
         for (int pass = 0; pass < 3; pass++)
         for (int y = y0; y < y1; y++)
@@ -315,6 +349,7 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
     public void BeginSpread(float worldY)
     {
         if (!IsReady) return;
+        recordingState = null;
         Flush();
         Array.Clear(settlingTicks, 0, settlingTicks.Length);
         activeSettlingTiles = settlingCursor = 0; settleAccumulator = 0;
@@ -344,6 +379,7 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
         IncludeChanged(0, y, width - 1, y);
         const float pickup = 0.96f;
         float ribbons = Ribbons, film = Film, variation = Variation;
+        float poolRatio = ribbons > 0 ? (1 - ribbons) / ribbons : 0;
         for (int x = 0; x < width; x++)
         {
             int i = y * width + x;
@@ -386,17 +422,27 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
             float wetting = Mathf.Lerp(0.45f, 1, Mathf.SmoothStep(0, 1,
                 Mathf.Clamp01(fullness * 2.2f + (grain - 0.5f) * 0.9f)));
             float volume = Mathf.Min(carried, target * fullness * wetting);
-            // The newest contact coat covers the old pool until its finite supply becomes too thin.
+            // The fresh contact coat thins over a finite tail instead of ending abruptly.
             float coatSupply = Mathf.Clamp01(bladeSkin[x] / (target * tailRows));
             float coatCoverage = coatSupply * coatSupply * (3 - 2 * coatSupply);
             float fromSkin = Mathf.Min(bladeSkin[x], volume * coatCoverage);
             float fromPool = Mathf.Min(blade[x], volume - fromSkin);
-            fromSkin += Mathf.Min(bladeSkin[x] - fromSkin, Mathf.Max(0, volume - fromSkin - fromPool));
-            Vector3 mass = TakePaint(bladeSkin, skinPigment, x, fromSkin) + TakePaint(blade, bladePigment, x, fromPool);
+            // Only material in contact with the fresh face can leave the older reservoir.
+            // Buried paint remains on the blade when that face runs dry, rather than coming
+            // back as another copy of an earlier stroke. Ribbons=0 retains deliberate mixing.
+            if (ribbons > 0)
+                fromPool = Mathf.Min(fromPool, fromSkin * poolRatio);
+            Vector3 freshMass = TakePaint(bladeSkin, skinPigment, x, fromSkin);
+            Vector3 poolMass = TakePaint(blade, bladePigment, x, fromPool);
             volume = fromSkin + fromPool;
             thickness[i] += volume / cellArea;
-            pigment[i] += mass / cellArea;
-            AddSurfaceLayer(i, volume / cellArea, mass / cellArea, bladeOrder[x]);
+            pigment[i] += (freshMass + poolMass) / cellArea;
+            // Older mixed paint sits below the fresh coat. Combining both masses into a single
+            // visible layer makes buried strokes appear as extra muddy marks inside the new color.
+            if (fromSkin > 0)
+                AddSurfaceLayer(i, fromSkin / cellArea, freshMass / cellArea, bladeOrder[x]);
+            else if (fromPool > 0)
+                AddSurfaceLayer(i, fromPool / cellArea, poolMass / cellArea, 0);
             PaperVolume += volume; BladeVolume -= volume;
         }
     }
@@ -566,8 +612,10 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
         if (top > 0.000001f)
         {
             Color coat = PigmentColor(surfacePigment[index] / surfaceThickness[index]);
+            // Let fresh surface pigment cover older marks cleanly; thin edges still reveal the underlying coats.
+            float coatOpacity = opacity * 1.8f;
             // At >99.5% coverage the buried color is visually negligible; skip its optical conversion.
-            if (top * opacity >= 5.3f) return coat;
+            if (top * coatOpacity >= 5.3f) return coat;
             float underneath = h - top;
             Color baseColor = Color.white;
             if (underneath > 0.000001f)
@@ -575,7 +623,7 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
                 Vector3 mass = Vector3.Max(Vector3.zero, pigment[index] - surfacePigment[index]);
                 baseColor = Color.Lerp(Color.white, PigmentColor(mass / underneath), 1 - Mathf.Exp(-underneath * opacity));
             }
-            return Color.Lerp(baseColor, coat, 1 - Mathf.Exp(-top * opacity));
+            return Color.Lerp(baseColor, coat, 1 - Mathf.Exp(-top * coatOpacity));
         }
         return Color.Lerp(Color.white, PigmentColor(pigment[index] / h), 1 - Mathf.Exp(-h * opacity));
     }
@@ -610,6 +658,7 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
 
     public void ClearPaint()
     {
+        recordingState = null;
         if (!IsReady) return;
         Array.Clear(thickness, 0, thickness.Length);
         Array.Clear(pigment, 0, pigment.Length);
@@ -665,7 +714,7 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
 
     private void LateUpdate()
     {
-        AdvanceSettling(Time.deltaTime, 24);
+        AdvanceSettling(Time.deltaTime, Application.isMobilePlatform ? 6 : 12);
         Flush();
     }
 

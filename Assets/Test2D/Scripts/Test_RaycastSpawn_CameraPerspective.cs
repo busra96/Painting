@@ -115,7 +115,7 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
         if (units <= 0 || surface.IsSpreading) return;
         if (budget == null) budget = FindFirstObjectByType<PaintAmount>();
         float distance = Vector3.Distance(from, to);
-        int steps = Mathf.Clamp(Mathf.CeilToInt(distance / (surface.BrushRadius * 0.3f)), 1, 1024);
+        int steps = Mathf.Clamp(Mathf.CeilToInt(distance / (surface.BrushRadius * 0.4f)), 1, 96);
         Vector2 direction = (to - from).normalized;
         for (int i = 1; i <= steps && !isPaintAmountDone; i++)
         {
@@ -128,7 +128,7 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
             }
             float granted = budget != null ? budget.Spend(units / steps) : units / steps;
             if (granted <= 0) break;
-            surface.Deposit(point, strokeColor, granted, direction);
+            surface.DepositInside(point, strokeColor, granted, direction);
             DepositedUnits += granted;
             PaintCount++;
         }

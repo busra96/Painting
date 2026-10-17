@@ -67,6 +67,7 @@ public static class PaintingPerformanceChecks
         {
             DrawLongStroke(surface);
             DrawSeparatedStrokes(surface);
+            DrawFilledCanvasStrokes(surface);
             RenderPaint(surface);
             Finish(null);
         }
@@ -124,6 +125,37 @@ public static class PaintingPerformanceChecks
             times[i] = timer.Elapsed.TotalMilliseconds;
         }
         Report("SEPARATED DROPS combined", times);
+    }
+
+    private static void DrawFilledCanvasStrokes(ImpastoPaintSurface surface)
+    {
+        var spawner = Object.FindFirstObjectByType<Test_RaycastSpawn_CameraPerspective>();
+        PaintHistory history = spawner.history;
+        if (history == null) throw new Exception("Filled-canvas profiling requires the real undo history");
+        history.ClearPainting();
+        for (int y = 0; y <= 25; y++)
+        for (int x = 0; x <= 16; x++)
+            surface.Deposit(new Vector3(-3.2f + x * 0.4f, 5.8f - y * 0.4f, 0), Color.blue, 0.12f, Vector2.zero);
+        surface.AdvanceSettling(1);
+        surface.Flush();
+        var point = new Vector3(-1, 3, 0);
+        for (int i = 0; i < 12; i++) { spawner.BeginStroke(point); spawner.EndStroke(); }
+        var samples = new double[24];
+        var timer = new Stopwatch();
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < samples.Length; i++)
+        {
+            timer.Restart();
+            spawner.BeginStroke(point); spawner.EndStroke();
+            samples[i] = timer.Elapsed.TotalMilliseconds;
+        }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Report("FILLED CANVAS stroke start and deposit", samples);
+        Debug.Log("PAINT PERF FILLED CANVAS managed_bytes=" + allocated + " history_bytes=" + history.SavedBytes);
+        if (allocated != 0) throw new Exception("Repeated strokes on an already painted canvas allocated managed memory: " + allocated);
+        if (history.SavedBytes > (long)surface.Width * surface.Height * 8)
+            throw new Exception("Small strokes copied too much of the existing painting into undo history");
+        history.ClearPainting();
     }
 
     private static void RenderPaint(ImpastoPaintSurface surface)

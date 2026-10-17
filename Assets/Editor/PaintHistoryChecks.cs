@@ -81,6 +81,25 @@ public static class PaintHistoryChecks
             Check(Object.FindFirstObjectByType<WorkshopVisualController>().amountTube.tube.DisplayedRemaining == 1,
                 "Clear visibly restores the full tube");
 
+            Vector3 left = new Vector3(-3.1f, 5.8f, 0), right = new Vector3(3.1f, -4, 0);
+            draw.BeginStroke(left); draw.PourAt(left, 3); draw.EndStroke();
+            surface.AdvanceSettling(0.05f, 6);
+            double beforeRemoteStroke = surface.MeasureVolume();
+            Vector3 beforeRemoteMass = surface.MeasurePigmentMass();
+            float beforeRemoteHeight = surface.SampleThickness(left);
+            draw.BeginStroke(right); draw.PourAt(right, 3); draw.EndStroke();
+            surface.AdvanceSettling(0.2f, 6);
+            history.UndoStroke();
+            Check(Math.Abs(surface.MeasureVolume() - beforeRemoteStroke) < 0.00001 &&
+                Vector3.Distance(surface.MeasurePigmentMass(), beforeRemoteMass) < 0.00001f &&
+                Mathf.Abs(surface.SampleThickness(left) - beforeRemoteHeight) < 0.00001f && surface.SampleThickness(right) == 0,
+                "Tile undo restores remote wet changes and keeps the untouched painting exact");
+            surface.AdvanceSettling(0.3f);
+            history.UndoStroke();
+            Check(surface.MeasureVolume() == 0 && amount.UsedAmount == 0,
+                "Settling after undo is captured before undoing the preceding stroke");
+            history.ClearPainting();
+
             history.maxStrokes = 2;
             var timer = Stopwatch.StartNew();
             for (int i = 0; i < 3; i++) { draw.BeginStroke(point + Vector3.right * i); draw.EndStroke(); }

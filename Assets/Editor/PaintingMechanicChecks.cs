@@ -81,6 +81,7 @@ public static class PaintingMechanicChecks
                 CheckAmountAndStepSize();
                 CheckNaturalTransport();
                 CheckCoatOrderAndSupply();
+                CheckStrokeClarity();
                 CheckDrawingWork();
                 CheckLoadedBlade();
                 CaptureVolumeResponse();
@@ -380,7 +381,7 @@ public static class PaintingMechanicChecks
             " thin=" + thin + " thick=" + thick);
         Check(largeReach > smallReach + 0.6f, "More of the lower color creates a longer opaque covering trail");
         Check(ColorDistance(thick, yellow) < ColorDistance(thin, yellow) * 0.55f,
-            "Lower paint quantity determines whether the old carried color is visible");
+            "Lower paint quantity determines the covering coat's opacity");
         Check(ColorDistance(thick, yellow) < 0.10f,
             "An ample lower coat stays opaque even over a large older paint reservoir");
         Check(spawner.gridProcessor.CapturePaintedImage(), "Layered pigment remains readable by the result system");
@@ -412,6 +413,74 @@ public static class PaintingMechanicChecks
         }
         Capture(preview);
         return reach;
+    }
+
+    private static void CheckStrokeClarity()
+    {
+        // Reproduce the reported "three marks look like five": two buried old marks must
+        // stay covered while three newly placed marks travel through the same blue band.
+        Color blue = new Color(0.08f, 0.29f, 0.77f);
+        Color red = new Color(0.9f, 0.07f, 0.03f);
+        surface.ClearPaint();
+        foreach (float x in new[] { -2.45f, 2.45f })
+            surface.Deposit(new Vector3(x, 5.5f, 0), red, 4, Vector2.zero);
+        for (int i = 0; i <= 32; i++)
+            surface.Deposit(new Vector3(-3.2f + i * 0.2f, 4.3f, 0), blue, 0.7f, Vector2.zero);
+        foreach (float x in new[] { -1.4f, 0, 1.4f })
+            surface.Deposit(new Vector3(x, 3.3f, 0), red, 2.8f, Vector2.zero);
+        Vector3 mass = surface.MeasurePigmentMass();
+        surface.BeginSpread(7.5f); surface.SpreadTo(-5.5f); surface.FinishSpread();
+
+        float buriedError = 0;
+        foreach (float x in new[] { -2.45f, 2.45f })
+            buriedError = Mathf.Max(buriedError, ColorDistance(surface.SamplePigment(new Vector3(x, 2.5f, 0)), blue));
+        int runs = CountRedStreaks(2.5f);
+        Debug.Log("STROKE CLARITY: red_runs=" + runs + " buried_color_error=" + buriedError);
+        Check(buriedError < 0.15f, "An ample blue coat hides the two buried marks throughout its trail");
+        Check(runs == 3, "Three fresh red marks remain three distinct marks after spreading");
+        int maximumRuns = 0;
+        bool oldColorReturned = false;
+        for (float y = 2.5f; y >= -4.5f; y -= 0.1f)
+        {
+            maximumRuns = Mathf.Max(maximumRuns, CountRedStreaks(y));
+            foreach (float x in new[] { -2.45f, 2.45f })
+            {
+                Color color = surface.SamplePigment(new Vector3(x, y, 0));
+                oldColorReturned |= color.r > color.b + 0.15f;
+            }
+        }
+        Debug.Log("STROKE TAIL CLARITY: max_red_runs=" + maximumRuns + " old_color_returned=" + oldColorReturned);
+        Capture("Stroke-Clarity");
+        Check(maximumRuns <= 3 && !oldColorReturned,
+            "Buried old marks cannot reappear as extra strokes when the newer paint runs out");
+        Check(Math.Abs(surface.MeasureVolume() - surface.DepositedVolume) < 0.0002 &&
+            Vector3.Distance(mass, surface.MeasurePigmentMass()) < 0.0003f,
+            "Keeping fresh pigment separate from the older pool preserves all material");
+    }
+
+    private static int CountRedStreaks(float y)
+    {
+        // Ragged feathering can break one physical stroke into a few pixel-sized islands.
+        // Merge gaps smaller than the brush footprint; two separate strokes stay separate.
+        int count = 0;
+        float first = float.NaN, last = float.NaN;
+        float mergeGap = surface.BrushRadius * 0.6f, minimumWidth = surface.BrushRadius * 0.4f;
+        for (int i = 0; i <= 320; i++)
+        {
+            float x = -3.2f + i * 0.02f;
+            Color color = surface.SamplePigment(new Vector3(x, y, 0));
+            bool isRed = color.r > 0.25f && color.r > color.b * 1.4f && color.g < color.r * 0.6f;
+            if (!isRed) continue;
+            if (float.IsNaN(first)) first = x;
+            else if (x - last > mergeGap)
+            {
+                if (last - first >= minimumWidth) count++;
+                first = x;
+            }
+            last = x;
+        }
+        if (!float.IsNaN(first) && last - first >= minimumWidth) count++;
+        return count;
     }
 
     private static float ColorDistance(Color a, Color b) =>
