@@ -1,6 +1,6 @@
 # Boya mekaniği
 
-Ana sahne: `Assets/Test2D/Scenes/Test 1.unity`.
+Ana sahne: `Assets/Painting/Scenes/Painting.unity`.
 
 Kağıda basılı tutmak boya bırakır; hareket etmek aynı akışı kesintisiz bir çizgiye dağıtır. Aynı noktada beklemek kalınlığı artırır. **DONE** düğmesinden sonra metal spatulayı aşağı sürükle. Spatula parmak bırakıldıktan sonra hedefe yumuşakça yetişir. Sonuç ekranındaki **RETRY** kağıdı ve boya haznesini sıfırlar.
 
@@ -8,7 +8,7 @@ Kağıda basılı tutmak boya bırakır; hareket etmek aynı akışı kesintisiz
 
 Ana sahnedeki `Canvas/Workshop` bütün UI nesnelerini kalıcı olarak içerir: Background, Target Card/Target Artwork, Amount Panel/Amount Segments, Status Panel/Status Text, Canvas Frame, Paint Area, Palette Panel ve Done Button/Button Label. Eski UI panelleri silinmiştir. Sprite, tint, font, yazı, RectTransform ve buton ayarları Inspector'dan düzenlenebilir. Çalışma anında UI nesnesi üretilmez ve tasarım konumları yeniden yazılmaz. `WorkshopVisualController` yalnızca kalan miktarı, seçili renk işaretini ve kamera/çizim alanı eşlemesini günceller.
 
-Mat guaj stilindeki ayrı görseller `Assets/Test2D/UI/Art` altında bulunur. `PaintedFrame` sprite'ı 9-slice ile çerçevelere ve butona uygulanır; `MattePaintDab` renk seçimi ve miktar parçaları için kullanılır. Hedef resim bağımsız bir Image'dır ve değiştirilebilir. Canvas, Main Camera ile Screen Space Camera modunda boyanabilir dünya yüzeyinin arkasında çizilir; böylece ahşap çerçeve ve tuval üzerindeki gerçek boya aynı render içinde görünür. Boya simülasyonunun dünya ölçüleri ve kütle hesabı değiştirilmez. Kamera, Canvas altındaki düzenlenebilir Paint Area'ya hizalanır. Temiz pigment/puan hesapları UI görsellerini içermez.
+Mat guaj stilindeki ayrı görseller `Assets/Painting/Art/UI` altında bulunur. `PaintedFrame` sprite'ı 9-slice ile çerçevelere ve butona uygulanır; `MattePaintDab` renk seçimi ve miktar parçaları için kullanılır. Hedef resim bağımsız bir Image'dır ve değiştirilebilir. Canvas, Main Camera ile Screen Space Camera modunda boyanabilir dünya yüzeyinin arkasında çizilir; böylece ahşap çerçeve ve tuval üzerindeki gerçek boya aynı render içinde görünür. Boya simülasyonunun dünya ölçüleri ve kütle hesabı değiştirilmez. Kamera, Canvas altındaki düzenlenebilir Paint Area'ya hizalanır. Temiz pigment/puan hesapları UI görsellerini içermez.
 
 `Tools → Painting → Check Workshop Visual` görünüm, tuval hizası, gerçek UI raycast alanları ve renk seçimini doğrular; başlangıç ve boyalı ekran görüntülerini `Logs/WorkshopPreview` altına kaydeder. Ana mekanik kontrolü Done, spatula, sonuç ve Retry sonrasında atölyenin tek kez kurulmasını da sınar.
 
@@ -40,15 +40,15 @@ Pigment karışımı doğrusal RGB ortalaması yerine ışık soğurması üzeri
 
 Birikinti gizliyken shader onun texture okumalarını ve üstel profil hesaplarını atlar. Görünürken aynı hazne örneği tekrar kullanılır. Yakın gölge üç kalınlık örneğiyle hesaplanır; normal ve gölge için gereksiz hazne okumaları yapılmaz. Gölge gücü ve kabarıklık, koyu lekelerin ayrı boya izleri gibi görünmesini azaltacak şekilde ayarlanmıştır.
 
-İnce boya uçları, puan görüntüsünün beyaz tabanını ekrana taşımak yerine kalınlığa bağlı optik örtücülükle gerçek Canvas dokusunu gösterir. Bu yüzden boya azalırken geniş beyaz bir sis oluşmaz; puanın okuduğu beyaz tabanlı pigment görüntüsü aynı kalır.
+Renk texture'ı, doğrusal renk uzayında örtücülükle çarpılmış pigmenti ve örtücülük alfasını taşır. sRGB kodlaması sayesinde GPU bu değerleri birlikte ve doğru renk uzayında filtreler. Boş pikseller beyaz RGB içermez; renk sınırında filtreleme beyaz kağıt örnekleyip parlak bir şerit üretemez. Islak yansıma da pigment ve örtücülükle çarpılır. İnce uçlar gerçek Canvas dokusunu gösterirken kabarıklık, normal ve gölge hesabı korunur.
 
-Canlı çizim `_PigmentTex` üzerinden gösterilir. Temiz renk görüntüsü yalnızca sonuç okunacağı zaman `SyncAlbedo()` ile CW'nin `CwPaintableSpriteTexture.Current` render texture'ına aktarılır. Eşleşme puanı bu görüntüden okunur; aydınlatma, kağıdın sıcak tonu, gölge ve parlama puanı etkilemez.
+Canlı çizim `_PigmentTex` üzerinden premultiplied alpha ile gösterilir. Sonuç okunacağı zaman `SyncAlbedo()`, `Resources/Shaders/ImpastoReadback.shader` ile pigmenti beyaz zemin üzerinde birleştirip CW'nin `CwPaintableSpriteTexture.Current` render texture'ına aktarır. Eşleşme puanı bu opak görüntüden okunur; aydınlatma, kağıdın sıcak tonu, gölge ve parlama puanı etkilemez. CPU `SamplePigment` de aynı beyaz zemin bileşimini verir.
 
 Bu model kıvamlı akrilik boya için bir yükseklik alanı yaklaşımıdır. Üç boyutlu sıvı parçacıkları, taşan damlalar veya kuruma kimyası simüle edilmez.
 
 ## Ayarlar
 
-`Assets/Test2D/SO/Settings.asset` üzerinden:
+`Assets/Painting/Settings/Settings.asset` üzerinden:
 
 | Ayar | Etkisi |
 | --- | --- |
@@ -78,7 +78,9 @@ Kontroller hacim ve üç pigment kanalının korunmasını, miktar/alan ilişkis
 
 Katman kontrolleri ayrıca aynı noktaya yeni renk koymayı, gevşerken katman sırasının korunmasını ve büyük bir eski boya haznesi üzerinde az/çok yeni boya taşımayı sınar. `Amount-Layers.png` karşılaştırmasında iki üst mavi yığın eşit miktardadır; sol alt sarı 0,12 birim, sağ alt sarı 2,4 birimdir. Sarı miktarı arttıkça eski rengi örttüğü mesafe uzamalıdır.
 
-`Stroke-Clarity.png` kontrolü iki eski kırmızı izi maviyle örter ve aşağıya üç yeni kırmızı iz koyar. Yayılma sonrasında mavi bölgede eski iki iz görünmemeli, ölçülen kırmızı şerit sayısı tam üç kalmalıdır. İz sonuna kadar ayrıca taranır: boya tükenirken gömülü eski renk yeniden çıkmamalı ve üçten fazla anlamlı şerit oluşmamalıdır. Fırça genişliğinden küçük kenar kırıntıları ayrı bir iz sayılmaz. 17 Ekim 2026 doğrulamasında 73 mekanik ve 17 geri alma kontrolü geçti. Geri alma kontrolü uzak iki bölgede boyamayı ve undo sonrasında devam eden gevşemeyi de kapsar. Batch giriş noktası `PaintHistoryChecks.RunBatch`.
+`Stroke-Clarity.png` kontrolü iki eski kırmızı izi maviyle örter ve aşağıya üç yeni kırmızı iz koyar. Yayılma sonrasında mavi bölgede eski iki iz görünmemeli, ölçülen kırmızı şerit sayısı tam üç kalmalıdır. İz sonuna kadar ayrıca taranır: boya tükenirken gömülü eski renk yeniden çıkmamalı ve üçten fazla anlamlı şerit oluşmamalıdır. Fırça genişliğinden küçük kenar kırıntıları ayrı bir iz sayılmaz. `Paint-Edges.png` kontrolü doygun bir boyanın ıslak kenarının beyazlaşmadığını GPU render'ından ölçer; çok ince boyanın puan görüntüsü de CPU pigment rengiyle karşılaştırılır. Geri alma kontrolü uzak iki bölgede boyamayı ve undo sonrasında devam eden gevşemeyi de kapsar. Batch giriş noktası `PaintHistoryChecks.RunBatch`.
+
+Klasör taşıması ve kenar düzeltmesi sonrasında 76 mekanik, 17 geri alma, 66 atölye/UI ve 13 tüp kontrolü geçti. 2.280 asset GUID'i ve ana sahnenin 77 bağımlılığı korundu; eksik script bulunmadı. Yerel kayıtlar `Logs/AssetLayout` altındadır. Yeni klasör düzeni [AssetLayout.md](AssetLayout.md) içinde açıklanır.
 
 Doğrulanan editör: Unity 6000.3.8f1. UI metin sarma API'si için Unity 2022/TMP 3 ve Unity 6 arasında derleme koşulu bulunur; yerel proje/paket yükseltmeleri mekanik değişikliklerinin parçası değildir.
 
@@ -92,9 +94,9 @@ Aynı makinede Unity 6000.3.8f1 ile ölçülen ortalama CPU süreleri:
 
 | Senaryo | İlk ölçüm | Güncel |
 | --- | --- | --- |
-| Uzun çizgi: döküş | 1,38 ms | 0,24 ms |
-| Uzun çizgi: gevşeme | 22,87 ms | 0,63 ms |
-| Uzun çizgi: renk/texture | 10,39 ms | 0,88 ms |
-| Uzak köşelerde boya: toplam | 46,13 ms | 1,41 ms |
+| Uzun çizgi: döküş | 1,38 ms | 0,29 ms |
+| Uzun çizgi: gevşeme | 22,87 ms | 0,78 ms |
+| Uzun çizgi: renk/texture | 10,39 ms | 1,11 ms |
+| Uzak köşelerde boya: toplam | 46,13 ms | 1,84 ms |
 
-Bunlar editör içindeki boya işlemlerinin ölçümüdür; oyunun tüm kare süresi veya cihazlar arası FPS garantisi değildir. Güncel ölçüm 17 Ekim 2026 tarihinde, 512 çözünürlükte alınmıştır. Dolu tuvalde tamponlar ısındıktan sonra çizgi başlangıcı + döküş ortalama 0,11 ms, p95 0,11 ms ve 0 byte managed tahsis verdi. Sekiz küçük çizginin geçmişi yaklaşık 1,18 MiB tuttu. Uzun çizgi döngüsünde de 0 byte managed tahsis ölçüldü. Texture gönderiminde p95 1,19 ms, en yüksek tek örnek 11,83 ms idi. Kanıtlar `Logs/PaintingPreview/*-Final.log` dosyalarındadır. Unity Profiler'da `Painting.Deposit`, `Painting.SettleTiles` ve `Painting.Upload` örnekleri ayrı izlenebilir. Bağlı Android cihaz bulunmadığından bu ölçümler APK'nin telefondaki FPS ölçümü değildir.
+Bunlar editör içindeki boya işlemlerinin ölçümüdür; oyunun tüm kare süresi veya cihazlar arası FPS garantisi değildir. Güncel ölçüm 17 Ekim 2026 tarihinde, 512 çözünürlükte alınmıştır. Dolu tuvalde tamponlar ısındıktan sonra çizgi başlangıcı + döküş ortalama 0,14 ms, p95 0,20 ms ve 0 byte managed tahsis verdi. Sekiz küçük çizginin geçmişi yaklaşık 1,18 MiB tuttu. Uzun çizgi döngüsünde de 0 byte managed tahsis ölçüldü. Texture gönderiminde p95 1,87 ms, en yüksek tek örnek 6,58 ms idi. Kanıt `Logs/AssetLayout/PaintingPerformanceChecks.log` dosyasındadır. Unity Profiler'da `Painting.Deposit`, `Painting.SettleTiles` ve `Painting.Upload` örnekleri ayrı izlenebilir. Bağlı Android cihaz bulunmadığından bu ölçümler APK'nin telefondaki FPS ölçümü değildir.
