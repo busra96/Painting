@@ -241,6 +241,7 @@ public static class GalleryGameChecks
         s.EndKnife(slow,1.2f);
         Check(Math.Abs(s.MeasureVolume()-bladeVolume)<bladeVolume*.003f && Mathf.Abs(s.CoveredArea()-fastArea)<fastArea*.16f,
             "Slow and fast palette-knife pulls preserve volume and produce comparable coverage");
+        ValidateKnife(game);
         tools.ClearCanvas();
         // Visual regression sample: rounded oil heaps, a short blade pull, and a pressed heap.
         s.Deposit(c+new Vector3(-2,1.5f,0),Color.red,4,Vector2.zero);
@@ -254,6 +255,121 @@ public static class GalleryGameChecks
         Preview(game,"Oil-Sculpting",1,720,1280);
         var image=AtelierArtworkCapture.Capture(tools.mainCamera,game.paper,896);
         File.WriteAllBytes("Logs/GalleryPreview/Oil-Relief.png",image.EncodeToPNG());Object.DestroyImmediate(image);
+        tools.ClearCanvas();
+    }
+    private static void ValidateKnife(GalleryGameController game)
+    {
+        var tools=game.tools;var s=tools.surface;Vector3 c=s.transform.position;
+        Vector3 start=c+new Vector3(0,1.5f,0),end=c+new Vector3(0,-1.5f,0);
+        tools.ClearCanvas();s.Deposit(start,Color.red,7,Vector2.zero);
+        double original=s.MeasureVolume();var load=s.BeginKnife(null,1.2f);
+        s.KnifeSweep(start,end,1.2f,.7f,.9f,load);
+        float residual=load.Volume;
+        Check(Math.Abs(s.MeasureVolume()+residual-original)<original*.003,
+            "During a pull every unit of paint is either on the canvas or carried by the blade");
+        Debug.Log("KNIFE LOAD: "+residual+" / "+original+" before lift");
+        Check(residual<original*.2,"A three-unit pull releases most collected paint before lifting");
+        float tail=s.SampleThickness(c+new Vector3(0,-.7f,0));
+        Check(tail>.001f,"Loaded knife leaves a real film along its travel");
+        s.EndKnife(load,1.2f);
+        Check(load.Volume==0 && Math.Abs(s.MeasureVolume()-original)<original*.003,
+            "Lifting returns the remaining load without losing or manufacturing paint");
+        float[] reference=new float[31];
+        for(int i=0;i<reference.Length;i++)reference[i]=s.SampleThickness(Vector3.Lerp(start,end,i/30f));
+        tools.ClearCanvas();s.Deposit(start,Color.red,7,Vector2.zero);load=s.BeginKnife(load,1.2f);
+        Vector3 previous=start;
+        for(int i=1;i<=1200;i++)
+        {
+            Vector3 next=Vector3.Lerp(start,end,i/1200f);
+            s.KnifeSweep(previous,next,1.2f,.7f,.9f,load);previous=next;
+        }
+        s.EndKnife(load,1.2f);
+        float difference=0,total=0;
+        for(int i=0;i<reference.Length;i++){difference+=Mathf.Abs(reference[i]-s.SampleThickness(Vector3.Lerp(start,end,i/30f)));total+=reference[i];}
+        Check(difference<total*.04f,"Sub-cell pointer events preserve the same film profile as a single long pull");
+        tools.ClearCanvas();s.Deposit(start,Color.red,2,Vector2.zero);load=s.BeginKnife(load,1.2f);
+        s.KnifeSweep(start,end,1.2f,.7f,.9f,load);s.EndKnife(load,1.2f);
+        float little=s.SampleThickness(c+new Vector3(0,-.7f,0));
+        Check(tail>little*1.4f,"More tube paint leaves a measurably thicker film at the same blade width and travel");
+        float[] midFilm=new float[2],farFilm=new float[2];
+        for(int p=0;p<2;p++)
+        {
+            tools.ClearCanvas();s.Deposit(start,Color.red,7,Vector2.zero);
+            tools.SelectTool(game.rules.painting.tools[2]);tools.SetControls(1,p==0?.15f:.95f);
+            tools.BeginGesture(start);tools.ContinueGesture(start+Vector3.down*3.5f,.016f);tools.EndStroke();
+            midFilm[p]=s.SampleThickness(start+Vector3.down);farFilm[p]=s.SampleThickness(start+Vector3.down*2.6f);
+        }
+        Debug.Log("KNIFE PRESSURE: mid "+midFilm[0]+" / "+midFilm[1]+"; far "+farFilm[0]+" / "+farFilm[1]);
+        Check(midFilm[1]<midFilm[0] && farFilm[1]>farFilm[0],"Firm knife pressure makes a thinner film that carries farther than a gentle pull");
+        tools.SetControls(1,.75f);
+        tools.ClearCanvas();load=s.BeginKnife(load,1.2f);
+        s.KnifeSweep(start,end,1.2f,.7f,.9f,load);s.EndKnife(load,1.2f);
+        Check(s.MeasureVolume()==0 && load.Volume==0,"An empty knife cannot paint a clean canvas");
+
+        // Reversal, a right-angle turn and the canvas edge exercise reservoir orientation and bounds.
+        tools.ClearCanvas();s.Deposit(start,Color.red,7,Vector2.zero);s.Deposit(c,Color.blue,2,Vector2.zero);
+        original=s.MeasureVolume();Vector3 mass=s.MeasurePigmentMass();load=s.BeginKnife(load,1.2f);
+        s.KnifeSweep(start,c,1.2f,.7f,.9f,load);s.KnifeSweep(c,c+Vector3.right*2,1.2f,.7f,.9f,load);
+        s.KnifeSweep(c+Vector3.right*2,c,1.2f,.7f,.9f,load);
+        s.KnifeSweep(c,c+Vector3.left*s.PaperSize.x*.49f,1.2f,.7f,.9f,load);s.EndKnife(load,1.2f);
+        Check(Math.Abs(s.MeasureVolume()-original)<original*.003 && (s.MeasurePigmentMass()-mass).magnitude<mass.magnitude*.006f,
+            "Turning, reversing and lifting at the edge preserve both colors and total volume");
+
+        tools.ClearCanvas();s.Deposit(c,Color.red,7,Vector2.zero);original=s.MeasureVolume();
+        tools.SelectColor(game.rules.painting.colors[4]);tools.SelectTool(game.rules.painting.tools[2]);tools.BeginGesture(c);
+        tools.ContinueGesture(c+Vector3.down*.45f,.016f);
+        var cursor=tools.cursor;
+        Check(cursor!=null && cursor.tip!=null && cursor.tip.sprite!=null && cursor.tip.color.a>0 && cursor.tip.color.r>cursor.tip.color.b*1.5f,
+            "Knife cursor shows the actual red paint carried from the canvas");
+        Vector3 contact=c+Vector3.down*.45f;
+        Check(((Vector2)(cursor.transform.position-contact)).magnitude<s.CellSize*.1f &&
+            Mathf.Abs(cursor.body.sprite.bounds.size.x*cursor.transform.lossyScale.x-game.rules.painting.tools[2].WorldSize(s))<s.CellSize,
+            "Visible blade follows the contact immediately and matches its physical width");
+        s.Flush();Preview(game,"Knife-Contact",1,720,1280,true);
+        tools.ContinueGesture(c+Vector3.down,.016f);tools.EndStroke();
+        Check(tools.Undo() && Math.Abs(s.MeasureVolume()-original)<original*.003,
+            "Undo restores the entire knife sweep including its curved lift footprint");
+        tools.ClearCanvas();s.Deposit(start,Color.red,9,Vector2.zero);load=s.BeginKnife(load,1.2f);
+        s.KnifeSweep(start,end,1.2f,.7f,.9f,load);s.EndKnife(load,1.2f);
+        var watch=System.Diagnostics.Stopwatch.StartNew();
+        // StartNew allocates once outside the measured kernel allocation window.
+        long before=GC.GetAllocatedBytesForCurrentThread();
+        for(int i=0;i<20;i++)
+        {
+            load=s.BeginKnife(load,1.2f);
+            s.KnifeSweep((i&1)==0?end:start,(i&1)==0?start:end,1.2f,.7f,.9f,load);s.EndKnife(load,1.2f);
+        }
+        long allocated=GC.GetAllocatedBytesForCurrentThread()-before;watch.Stop();
+        Check(allocated==0,"Knife contact, lateral paint flow and lift allocate zero managed bytes after warmup");
+        Debug.Log("KNIFE PERFORMANCE: "+(watch.Elapsed.TotalMilliseconds/20).ToString("F3")+" ms per three-unit pull; "+allocated+" B (desktop Editor)");
+        tools.ClearCanvas();
+        s.Deposit(start+Vector3.left*1.7f,Color.red,7,Vector2.zero);
+        s.Deposit(start+Vector3.right*1.7f,Color.yellow,10,Vector2.zero);
+        load=s.BeginKnife(load,1.2f);previous=start+Vector3.left*1.7f;
+        for(int i=1;i<=120;i++)
+        {
+            float t=i/120f;
+            Vector3 next=start+new Vector3(-1.7f+Mathf.Sin(t*Mathf.PI*1.6f)*.7f,-t*3.4f,0);
+            s.KnifeSweep(previous,next,1.2f,.7f,.9f,load);previous=next;
+        }
+        s.EndKnife(load,1.2f);
+        load=s.BeginKnife(load,1.5f);previous=start+Vector3.right*1.7f;
+        for(int i=1;i<=100;i++)
+        {
+            Vector3 next=start+new Vector3(1.7f-i*.009f,-i*.031f,0);
+            s.KnifeSweep(previous,next,1.5f,.7f,.9f,load);previous=next;
+        }
+        s.EndKnife(load,1.5f);
+        int pinholes=0,samples=0;
+        for(int i=15;i<85;i++)for(int k=-3;k<=3;k++)
+        {
+            Vector3 p=start+new Vector3(1.7f-i*.009f+k*.04f,-i*.031f,0);
+            if(s.SampleThickness(p)<.00001f)pinholes++;samples++;
+        }
+        Check(pinholes==0,"Diagonal knife film has continuous coverage without grid pinholes ("+pinholes+"/"+samples+")");
+        s.Flush();if(tools.cursor!=null)tools.cursor.HideNow();
+        var image=AtelierArtworkCapture.Capture(tools.mainCamera,game.paper,896);
+        File.WriteAllBytes("Logs/GalleryPreview/Knife-Strokes.png",image.EncodeToPNG());Object.DestroyImmediate(image);
         tools.ClearCanvas();
     }
     private static void DrawLandscape(GalleryGameController game)
@@ -280,9 +396,9 @@ public static class GalleryGameChecks
         }
         c.EndStroke();
     }
-    private static void Preview(GalleryGameController game,string name,int page,int width,int height)
+    private static void Preview(GalleryGameController game,string name,int page,int width,int height,bool preserveGesture=false)
     {
-        game.SetPage(page);var canvas=game.layout.canvas;var camera=game.tools.mainCamera;var scaler=canvas.GetComponent<CanvasScaler>();
+        if(!preserveGesture)game.SetPage(page);var canvas=game.layout.canvas;var camera=game.tools.mainCamera;var scaler=canvas.GetComponent<CanvasScaler>();
         var oldMode=canvas.renderMode;var oldCamera=canvas.worldCamera;var target=camera.targetTexture;var active=RenderTexture.active;bool scaled=scaler.enabled;float factor=canvas.scaleFactor;int mask=camera.cullingMask;
         var render=RenderTexture.GetTemporary(width,height,24,RenderTextureFormat.ARGB32);var image=new Texture2D(width,height,TextureFormat.RGB24,false);
         var temp=new GameObject("Preview UI Camera",typeof(Camera));var ui=temp.GetComponent<Camera>();ui.enabled=false;ui.orthographic=true;ui.orthographicSize=5;ui.transform.position=new Vector3(0,0,-10);ui.cullingMask=1<<5;ui.clearFlags=CameraClearFlags.Depth;ui.targetTexture=render;

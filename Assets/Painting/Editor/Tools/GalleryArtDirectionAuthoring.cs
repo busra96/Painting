@@ -41,6 +41,7 @@ public static class GalleryArtDirectionAuthoring
             game.rules.painting.tools[i]=copy;EditorUtility.SetDirty(copy);
         }
         game.rules.painting.defaultTool=game.rules.painting.tools[0];EditorUtility.SetDirty(game.rules.painting);
+        ConfigureKnifeCursor(game);
         theme=Theme();
         var canvas=game.layout.canvas;
         foreach(var label in canvas.GetComponentsInChildren<TMP_Text>(true))
@@ -101,6 +102,42 @@ public static class GalleryArtDirectionAuthoring
         RebuildSlider(toolControls.size);RebuildSlider(toolControls.pressure);
         EditorSceneManager.MarkSceneDirty(game.gameObject.scene);EditorSceneManager.SaveScene(game.gameObject.scene);
         AssetDatabase.SaveAssets();Debug.Log("GALLERY OIL PAINT AND ARTISAN UI APPLIED");
+    }
+    public static void KnifeCursorBatch()
+    {
+        try
+        {
+            EditorSceneManager.OpenScene(GalleryGameAuthoring.ScenePath);
+            var game=Object.FindFirstObjectByType<GalleryGameController>();ConfigureKnifeCursor(game);
+            EditorSceneManager.MarkSceneDirty(game.gameObject.scene);EditorSceneManager.SaveScene(game.gameObject.scene);
+            AssetDatabase.SaveAssets();EditorApplication.Exit(0);
+        }
+        catch(Exception e){Debug.LogException(e);EditorApplication.Exit(1);}
+    }
+    private static void ConfigureKnifeCursor(GalleryGameController game)
+    {
+        // Reuse the project's transparent painted spreader. Its blade width matches the contact
+        // kernel; the old long palette-knife crop included an opaque background and hid the paint.
+        foreach(var tool in game.rules.painting.tools)
+        {
+            if(!(tool is KnifeToolDefinition))continue;
+            tool.cursor=KnifeSprite("KnifeContactBody","Cursor_Knife");
+            tool.cursorTip=KnifeSprite("KnifeContactPaint","Cursor_KnifeTip");
+            tool.cursorScale=.5f;EditorUtility.SetDirty(tool);
+        }
+        var cursor=game.tools.cursor;if(cursor==null || cursor.tip!=null)return;
+        var tip=new GameObject("Carried Paint On Blade",typeof(SpriteRenderer)).GetComponent<SpriteRenderer>();
+        tip.transform.SetParent(cursor.transform,false);tip.transform.localPosition=new Vector3(0,0,-.001f);
+        tip.sortingLayerID=cursor.body.sortingLayerID;tip.sortingOrder=cursor.body.sortingOrder+1;
+        tip.color=Color.clear;cursor.tip=tip;
+    }
+    private static Sprite KnifeSprite(string name,string source)
+    {
+        string path=Art+name+".asset";var existing=AssetDatabase.LoadAssetAtPath<Sprite>(path);
+        if(existing!=null)return existing;
+        var texture=AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Painting/Art/Atelier/"+source+".png");
+        var sprite=Sprite.Create(texture,new Rect(0,0,texture.width,texture.height),new Vector2(.5f,.63f),100,0,SpriteMeshType.FullRect);
+        sprite.name=name;AssetDatabase.CreateAsset(sprite,path);return sprite;
     }
     private static GalleryUITheme Theme()
     {

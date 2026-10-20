@@ -24,3 +24,7 @@ Performans örneği: geniş fırçanın gerçek çalışma yarıçapıyla fırç
 720×1280, 720×1560 ve 768×1024 ekran oranlarında görüntüler üretildi. Atölye, koleksiyon, Mağaza ve Reklam panelleri; perspektif duvar tabloları; mobil düzen ve karakter parçaları görsel olarak incelendi. Son örnekler `Docs/Previews/GalleryAtelier-*.png` altında. Konsept ve kullanılan raster asset'ler yerleşik imagegen ile üretildi; promptlar `Docs/GalleryArtPrompts.md` içinde.
 
 Fiziksel Android cihazında APK/FPS testi yapılmadı. Hedef görsele benzetme sahnesi ve önceki AtelierShop prototipi build listesinde korunuyor; bu yeni döngüyü denemek için `Assets/Painting/Scenes/GalleryAtelier.unity` açılmalı.
+
+## 20 Ekim: spatula teması ve boya yükü
+
+Spatula revizyonundan sonra GalleryGameChecks 152, AtelierToolChecks 8, PaintingMechanicChecks 76, WorkshopVisualChecks 66 ve PaintHistoryChecks 19 yeniden çalıştırıldı: **321 kontrol**, beş süreç de exit 0. Loglar `Logs/*-KnifeVerified.log`; davranış ve performans ayrıntıları [PaletteKnifeRevision.md](PaletteKnifeRevision.md) içinde. Bu sayım, yukarıdaki önceki yedi gruplu doğrulamanın yerine geçen bir toplam değildir; son revizyonda tekrar çalıştırılan beş grubu gösterir.

@@ -137,6 +137,7 @@ namespace PaintingGame.Atelier
                     tool.Drag(previous, here, Time.deltaTime);
                     previous = here;
                     if (cursor != null) cursor.Follow(here, tool.Direction, true);
+                    if(cursor!=null && tool is KnifeTool knife)cursor.SetKnifeLoad(knife.CarriedColor,knife.CarriedAmount);
                 }
                 if (released) EndStroke();
             }
@@ -159,6 +160,7 @@ namespace PaintingGame.Atelier
             tool.Drag(previous, point, Mathf.Clamp(seconds, 0, 0.05f));
             previous = point;
             if (cursor != null) cursor.Follow(point, tool.Direction, true);
+            if(cursor!=null && tool is KnifeTool knife)cursor.SetKnifeLoad(knife.CarriedColor,knife.CarriedAmount);
             Inventory.FlushNotifications();
         }
 
@@ -173,6 +175,7 @@ namespace PaintingGame.Atelier
             context.BeginStroke();
             tool.Begin(point);
             if (cursor != null) cursor.Follow(point, Vector2.zero, true);
+            if(cursor!=null && tool is KnifeTool)cursor.SetKnifeLoad(Color.clear,0);
             StrokeBegan?.Invoke(tool.Definition);
         }
 

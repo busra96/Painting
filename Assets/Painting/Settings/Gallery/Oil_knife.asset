@@ -16,9 +16,9 @@ MonoBehaviour:
   displayName: Spatula
   hint: "Boyay\u0131 istedi\u011Fin y\xF6ne, istedi\u011Fin kadar \xE7ek."
   icon: {fileID: 21300000, guid: cebb3693a5b3c4249b5a6626c0ab1d38, type: 2}
-  cursor: {fileID: 21300000, guid: cebb3693a5b3c4249b5a6626c0ab1d38, type: 2}
-  cursorTip: {fileID: 0}
-  cursorScale: 0.65
+  cursor: {fileID: 21300000, guid: de6e960f2584cc14d9b9adcb72a15a72, type: 2}
+  cursorTip: {fileID: 21300000, guid: 0fbbc93417f1e1544a0e65e6adaa9fb5, type: 2}
+  cursorScale: 0.5
   cursorFollowsStroke: 1
   size: 0.2
   filmScale: 0.85

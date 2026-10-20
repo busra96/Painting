@@ -17,6 +17,7 @@ namespace PaintingGame.Atelier
         private float baseScale = 1, pressScale = 1, angle;
         private float hideAt = -1;
         private float sizeMultiplier = 1;
+        private bool contactLocked;
         public void SetSizeMultiplier(float size,PaintToolDefinition tool,ImpastoPaintSurface surface)
         { sizeMultiplier=size; if(tool!=null)SetTool(tool,surface); }
 
@@ -34,6 +35,7 @@ namespace PaintingGame.Atelier
             if (body != null) body.sprite = tool.cursor;
             if (tip != null) { tip.sprite = tool.cursorTip; tip.enabled = tool.cursorTip != null; }
             follows = tool.cursorFollowsStroke;
+            contactLocked = tool is KnifeToolDefinition;
             float worldSize = tool.WorldSize(surface) * 2 * tool.cursorScale * sizeMultiplier;
             float spriteSize = tool.cursor != null ? Mathf.Max(0.0001f, tool.cursor.bounds.size.x) : 1;
             // Parent x scale is 1, so local x size equals visual canvas units.
@@ -50,7 +52,13 @@ namespace PaintingGame.Atelier
 
         public void SetPaint(Color pigment)
         {
-            if (tip != null) tip.color = pigment;
+            if (tip != null) tip.color = contactLocked ? Color.clear : pigment;
+        }
+
+        public void SetKnifeLoad(Color pigment,float amount)
+        {
+            if(tip==null)return;
+            pigment.a=Mathf.Clamp01(amount)*.9f;tip.color=pigment;
         }
 
         public void Follow(Vector3 point, Vector2 travel, bool down)
@@ -59,9 +67,20 @@ namespace PaintingGame.Atelier
             if (transform.parent != null) point = transform.parent.InverseTransformPoint(point);
             point.z = transform.localPosition.z;
             if (down && !pressed) { transform.localPosition = point; pressScale = 0.82f; }
+            if(down && !pressed)direction=travel;
             pressed = down;
             target = point;
             if (travel.sqrMagnitude > 0.0001f) direction = travel;
+            // The knife's contact point and angle must agree with the simulation under the finger.
+            // Smoothing both independently made the blade visibly skate behind the paint it moved.
+            if (down && contactLocked)
+            {
+                transform.localPosition = point;
+                pressScale = 1;
+                if (direction.sqrMagnitude > .0001f)
+                    angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90;
+                transform.localRotation = Quaternion.Euler(0, 0, angle);
+            }
             hideAt = down ? -1 : Time.time + 0.25f;
             SetVisible(true);
             enabled = true;
@@ -74,7 +93,7 @@ namespace PaintingGame.Atelier
             if (follows && direction != Vector2.zero)
             {
                 float targetAngle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90;
-                angle = Mathf.LerpAngle(angle, targetAngle, 1 - Mathf.Exp(-turnSharpness * dt));
+                angle = contactLocked && pressed ? targetAngle : Mathf.LerpAngle(angle, targetAngle, 1 - Mathf.Exp(-turnSharpness * dt));
             }
             else angle = Mathf.LerpAngle(angle, maxTilt * (pressed ? 1 : 0.4f), 1 - Mathf.Exp(-turnSharpness * dt));
             transform.localRotation = Quaternion.Euler(0, 0, angle);

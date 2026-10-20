@@ -173,6 +173,19 @@ public sealed partial class ImpastoPaintSurface
         internal bool hasAxis;
         internal Vector2 lastCenter;    // grid units
         internal Vector2 travel;
+        internal float untilNextContact;
+        public Vector2 Direction => travel;
+        public Color PaintColor
+        {
+            get
+            {
+                float volume=0;Vector3 mass=Vector3.zero;
+                for(int k=0;k<count;k++){volume+=pool[k]+skin[k];mass+=poolMass[k]+skinMass[k];}
+                if(volume<.0000001f)return Color.clear;
+                mass/=volume;
+                return new Color(Mathf.Exp(-mass.x),Mathf.Exp(-mass.y),Mathf.Exp(-mass.z),1).gamma;
+            }
+        }
 
         public float Volume
         {
@@ -194,6 +207,7 @@ public sealed partial class ImpastoPaintSurface
             count = samples;
             for(int k=0;k<samples;k++)lastCell[k]=-1;
             hasAxis = false;
+            untilNextContact = 0;
         }
     }
 
@@ -214,43 +228,52 @@ public sealed partial class ImpastoPaintSurface
         float vdx = VDx, vdy = VDy;
         Vector2 deltaVisual = new Vector2((b.x - a.x) * vdx, (b.y - a.y) * vdy);
         float distance = deltaVisual.magnitude;
-        if (distance < CellSize * 0.25f) return;
+        if (distance < .000001f) return;
         using (KnifeMarker.Auto())
         {
             Vector2 travel = deltaVisual / distance;
-            load.travel = travel;
             bool firstContact=!load.hasAxis;
             Vector2 axis = new Vector2(-travel.y, travel.x);
-            // Keep the blade's left/right consistent so load indices map to the same physical side.
-            if (load.hasAxis)
-            {
-                if (Vector2.Dot(axis, load.axis) < 0) axis = -axis;
-                axis = Vector2.Lerp(load.axis, axis, 0.5f).normalized;
-            }
-            load.axis = axis; load.hasAxis = true;
-            // One step ≈ 0.9 of a cell along the travel direction.
-            float cellAlongTravel = 1 / Mathf.Sqrt(travel.x * travel.x / (vdx * vdx) + travel.y * travel.y / (vdy * vdy));
-            float step = cellAlongTravel * 0.9f;
-            int steps = Mathf.Clamp(Mathf.CeilToInt(distance / step), 1, 768);
+            if (!firstContact && Vector2.Dot(axis, load.axis) < 0) axis = -axis;
+            if (firstContact) load.axis = axis;
+            load.hasAxis = true;
+            // Fixed arc-length contacts, with the unused distance carried across pointer events.
+            // A slow finger and a coalesced mobile input event must work the same amount of paint.
+            float step = CellSize * .75f;
             float spacing = bladeWidth / load.count, half = bladeWidth * 0.5f;
             float film = Film * Mathf.Max(0.05f, filmScale), ribbons = Ribbons, variation = Variation;
-            float poolRatio = ribbons > 0 ? (1 - ribbons) / ribbons : 0;
-            float tailSteps = Mathf.Max(2, Tail * VisualScale.y / step);
+            float releaseLength = Mathf.Max(CellSize * 4, bladeWidth * Mathf.Lerp(2.4f, .5f, Mathf.Clamp01(filmScale / 1.5f)));
+            float stripArea = Mathf.Max(.000001f, spacing * releaseLength / (VisualScale.x * VisualScale.y));
+            float turnBlend = 1 - Mathf.Exp(-step / Mathf.Max(CellSize, bladeWidth * .12f));
+            float reach = half + bladeWidth * .14f;
+            float ex = reach / vdx + 2, ey = reach / vdy + 2;
             pickup = Mathf.Clamp(pickup, 0.1f, 0.98f);
-            float ex = Mathf.Abs(axis.x) * half / vdx + 1, ey = Mathf.Abs(axis.y) * half / vdy + 1;
-            for (int s = firstContact?0:1; s <= steps; s++)
+            float cursor = load.untilNextContact;
+            bool changed=false;
+            for (; cursor <= distance; cursor += step)
             {
-                Vector2 c = Vector2.Lerp(a, b, s / (float)steps);
+                Vector2 c = Vector2.Lerp(a, b, cursor / distance);
+                // Turning is limited by distance, not frame rate. Short curved segments sweep a fan
+                // instead of snapping the reservoir into an unrelated strip on every input event.
+                load.axis = Vector2.Lerp(load.axis, axis, turnBlend).normalized;
+                Vector2 along = new Vector2(load.axis.y, -load.axis.x);
+                if (Vector2.Dot(along, travel) < 0) along = -along;
+                load.travel = along;
                 int bx0 = Mathf.Max(0, Mathf.FloorToInt(c.x - ex)), bx1 = Mathf.Min(width - 1, Mathf.CeilToInt(c.x + ex));
                 int by0 = Mathf.Max(0, Mathf.FloorToInt(c.y - ey)), by1 = Mathf.Min(height - 1, Mathf.CeilToInt(c.y + ey));
                 if (bx0 > bx1 || by0 > by1) continue;
-                CaptureHistoryTiles(bx0, by0, bx1, by1);
                 int previousCell = -1;
-                bool touched=false;
+                bool touched=false,captured=false;
                 for (int k = 0; k < load.count; k++)
                 {
-                    float offset = (k + 0.5f) * spacing - half;
-                    int x = Mathf.RoundToInt(c.x + axis.x * offset / vdx), y = Mathf.RoundToInt(c.y + axis.y * offset / vdy);
+                    float u = ((k + .5f) / load.count) * 2 - 1;
+                    float offset = u * half;
+                    // A gently bowed edge and rounded shoulders leave a palette-knife mark rather
+                    // than a ruler-shaped strip. The edge pressure falls continuously toward the tips.
+                    float bow = bladeWidth * .12f * u * u;
+                    float gx = c.x + (load.axis.x * offset - along.x * bow) / vdx;
+                    float gy = c.y + (load.axis.y * offset - along.y * bow) / vdy;
+                    int x = Mathf.RoundToInt(gx), y = Mathf.RoundToInt(gy);
                     if (x < 0 || y < 0 || x >= width || y >= height) continue;
                     int i = y * width + x;
                     // Neighbouring samples can land on the same stretched cell; work it once.
@@ -258,23 +281,53 @@ public sealed partial class ImpastoPaintSurface
                     previousCell = i;
                     if(load.lastCell[k]==i)continue;
                     load.lastCell[k]=i;
-                    touched=true;
-                    KnifeCell(i, k, load, film, ribbons, variation, poolRatio, tailSteps, pickup);
+                    if(!captured && (thickness[i]>film*.45f || load.pool[k]+load.skin[k]>0))
+                    {CaptureHistoryTiles(bx0,by0,bx1,by1);captured=true;}
+                    float shoulder = Mathf.Sqrt(Mathf.Max(0, 1 - u * u));
+                    touched |= KnifeCell(i, gx, gy, k, load, film, ribbons, variation, stripArea, shoulder, pickup);
                 }
-                if(touched)SmoothKnifeLoad(load);
-                ActivateSettling(bx0, by0, bx1, by1);
-                IncludeChanged(bx0, by0, bx1, by1);
+                if(touched)
+                {
+                    SmoothKnifeLoad(load);
+                    SmoothKnifeFilm(c,load.axis,along,half);
+                    ActivateSettling(bx0, by0, bx1, by1);
+                    IncludeChanged(bx0, by0, bx1, by1);
+                    changed=true;
+                }
+                load.lastCenter = c;
             }
-            load.lastCenter = b;
-            dirty = true;
+            load.untilNextContact = cursor - distance;
+            if(changed)dirty = true;
         }
     }
 
-    private void KnifeCell(int i, int k, KnifeLoad load, float film, float ribbons, float variation,
-        float poolRatio, float tailSteps, float pickup)
+    private void SmoothKnifeFilm(Vector2 center,Vector2 axis,Vector2 along,float half)
+    {
+        // Local conservative relaxation of the thin contact band removes the sampling corrugation
+        // of a diagonal edge. Unworked paint elsewhere on the canvas retains its sculpted relief.
+        float cell=CellSize,vdx=VDx,vdy=VDy;
+        int samples=Mathf.CeilToInt(half*2/cell);
+        // Walk a narrow ribbon directly, instead of scanning a square enclosing a diagonal blade.
+        for(int k=0;k<samples;k++)
+        {
+            float u=(k+.5f)/samples*2-1,offset=u*half,bow=half*.24f*u*u;
+            for(int n=-2;n<=2;n++)
+            {
+                float longitudinal=n*cell-bow;
+                int x=Mathf.RoundToInt(center.x+(axis.x*offset+along.x*longitudinal)/vdx);
+                int y=Mathf.RoundToInt(center.y+(axis.y*offset+along.y*longitudinal)/vdy);
+                if(x<0 || y<0 || x>=width-1 || y>=height-1)continue;
+                int i=y*width+x;
+                RelaxPressedPair(i,i+1,.24f);RelaxPressedPair(i,i+width,.24f);
+            }
+        }
+    }
+
+    private bool KnifeCell(int i, float gx, float gy, int k, KnifeLoad load, float film, float ribbons, float variation,
+        float stripArea, float shoulder, float pickup)
     {
         // Scrape: same layered pickup as the full-width spreader (fresh coat → skin, the rest → pool).
-        float collected = Mathf.Max(0,thickness[i]-film*.45f) * pickup;
+        float collected = Mathf.Max(0,thickness[i]-film*.45f) * pickup * Mathf.Lerp(.25f, 1, shoulder);
         if (collected > 0)
         {
             float fraction=collected/thickness[i];
@@ -299,29 +352,28 @@ public sealed partial class ImpastoPaintSurface
         }
         // Lay the film behind the blade.
         float carried = load.pool[k] + load.skin[k];
-        if (carried <= 0) return;
+        if (carried <= 0) return collected > 0;
         float grain = contactTexture[i];
-        float loadRatio = carried / (dx * 0.12f);
-        float target = film * (1 + (grain - 0.5f) * variation) * Mathf.Lerp(0.9f, 1.2f, Mathf.Clamp01(loadRatio / 2)) * cellArea;
-        float fullness = Mathf.Sqrt(Mathf.Clamp01(carried / (target * tailSteps)));
-        float wetting = Mathf.Lerp(0.45f, 1, Mathf.SmoothStep(0, 1, Mathf.Clamp01(fullness * 2.2f + (grain - 0.5f) * 0.9f)));
-        float volume = Mathf.Min(carried, Mathf.Max(0,target-thickness[i]*cellArea) * fullness * wetting);
-        float coatSupply = Mathf.Clamp01(load.skin[k] / (target * tailSteps));
-        float coverage = coatSupply * coatSupply * (3 - 2 * coatSupply);
-        float fromSkin = Mathf.Min(load.skin[k], volume * coverage);
+        float loadedHeight = carried / stripArea;
+        float wetting = Mathf.Clamp01(loadedHeight / Mathf.Max(.0001f, film * .8f));
+        wetting = wetting * wetting * (3 - 2 * wetting);
+        float target = (film * .35f + loadedHeight) * shoulder * (1 + (grain - .5f) * variation * .35f) * cellArea;
+        float volume = Mathf.Min(carried, Mathf.Max(0, target - thickness[i] * cellArea) * wetting);
+        // Both the visible coat and the body of the load can leave the knife. Blocking the body
+        // behind the coat trapped most of the paint until lift-off and produced a hard final wall.
+        float fromSkin = Mathf.Min(load.skin[k], volume * (carried > 0 ? load.skin[k] / carried : 0));
         float fromPool = Mathf.Min(load.pool[k], volume - fromSkin);
-        // As in the full-width spreader, buried paint only leaves alongside a fresh coat; the rest stays on the
-        // blade and is laid as a ridge when the knife is lifted (EndKnife).
-        if (ribbons > 0) fromPool = Mathf.Min(fromPool, fromSkin * poolRatio);
         Vector3 fresh = TakePaint(load.skin, load.skinMass, k, fromSkin);
         Vector3 old = TakePaint(load.pool, load.poolMass, k, fromPool);
         float laid = fromSkin + fromPool;
-        if (laid <= 0) return;
-        thickness[i] += laid / cellArea;
-        pigment[i] += (fresh + old) / cellArea;
-        if (fromSkin > 0) AddSurfaceLayer(i, fromSkin / cellArea, fresh / cellArea, load.order[k]);
-        else AddSurfaceLayer(i, fromPool / cellArea, old / cellArea, 0);
+        if (laid <= 0) return collected > 0;
+        // A moving edge covers fractional cells. Nearest-cell deposits left a checker of pinholes
+        // in diagonal and curved strokes even though their total volume was correct.
+        SplatBilinear(gx, gy, laid / cellArea, (fresh + old) / cellArea,
+            fromSkin > 0 ? fromSkin / cellArea : fromPool / cellArea,
+            fromSkin > 0 ? fresh / cellArea : old / cellArea, fromSkin > 0 ? load.order[k] : 0);
         PaperVolume += laid;
+        return true;
     }
 
     // Heavy loads squeeze sideways along the edge (conservative exchange between neighbours).
@@ -329,46 +381,69 @@ public sealed partial class ImpastoPaintSurface
     {
         float flow = Mathf.Clamp01(SideFlow * 25);
         if (flow <= 0) return;
-        for (int k = 0; k < load.count - 1; k++)
+        // The fresh coat must squeeze sideways too, otherwise a small dab stays a rigid narrow
+        // column even under a wide blade. Alternate the passes to avoid a left-to-right bias.
+        for (int pass = 0; pass < 4; pass++)
+        for (int n = 0; n < load.count - 1; n++)
         {
+            int k = (pass & 1) == 0 ? n : load.count - 2 - n;
             float a = load.pool[k], b = load.pool[k + 1];
-            float mobility = Mathf.SmoothStep(0, 1, Mathf.Clamp01((a + b) / (2 * dx * 0.12f) / 0.8f));
-            float move = (a - b) * 0.25f * flow * mobility;
+            float total = a + b + load.skin[k] + load.skin[k + 1];
+            float mobility = Mathf.Clamp01(total / Mathf.Max(.000001f, cellArea * Film * 6));
+            float move = (a - b) * .45f * flow * mobility;
             if (move > 0) MovePaint(load.pool, load.poolMass, k, load.pool, load.poolMass, k + 1, move);
             else if (move < 0) MovePaint(load.pool, load.poolMass, k + 1, load.pool, load.poolMass, k, -move);
+            float coatMove = (load.skin[k] - load.skin[k + 1]) * .45f * flow * mobility;
+            if (coatMove > 0) MoveKnifeCoat(load, k, k + 1, coatMove);
+            else if (coatMove < 0) MoveKnifeCoat(load, k + 1, k, -coatMove);
         }
+    }
+
+    private static void MoveKnifeCoat(KnifeLoad load, int from, int to, float volume)
+    {
+        // Preserve a fresh coat where possible; a different older color joins the body of the load.
+        if (load.skin[to] <= .0000001f) load.order[to] = load.order[from];
+        if (load.order[to] == load.order[from])
+            MovePaint(load.skin, load.skinMass, from, load.skin, load.skinMass, to, volume);
+        else
+            MovePaint(load.skin, load.skinMass, from, load.pool, load.poolMass, to, volume);
     }
 
     // Lifting the knife leaves its remaining paint as a ridge along the blade's last position.
     public void EndKnife(KnifeLoad load, float bladeWidth)
     {
         if (!IsReady || load == null || load.count == 0 || !load.hasAxis) return;
+        if(load.Volume<=0){load.Prepare(load.count);return;}
         float spacing = bladeWidth / load.count, half = bladeWidth * 0.5f;
         float vdx = VDx, vdy = VDy;
         Vector2 c = load.lastCenter;
-        float depth=Mathf.Clamp(load.Volume/Mathf.Max(.001f,bladeWidth*.3f),CellSize*2,bladeWidth*.3f);
-        int steps=Mathf.Clamp(Mathf.CeilToInt(depth/CellSize),2,16);
+        float depth=Mathf.Clamp(load.Volume/Mathf.Max(.001f,bladeWidth*.18f),CellSize*4,bladeWidth*.85f);
+        int steps=Mathf.Clamp(Mathf.CeilToInt(depth/CellSize),4,64);
         float weightSum=0;
-        for(int s=0;s<steps;s++){float t=s/(float)(steps-1);weightSum+=(1-t)*(1-t)+.15f;}
+        for(int s=0;s<steps;s++){float t=(s+.5f)/steps;weightSum+=t*(1-t);}
+        float reach=half+depth+CellSize*3;
+        int x0=Mathf.Max(0,Mathf.FloorToInt(c.x-reach/vdx)),x1=Mathf.Min(width-1,Mathf.CeilToInt(c.x+reach/vdx));
+        int y0=Mathf.Max(0,Mathf.FloorToInt(c.y-reach/vdy)),y1=Mathf.Min(height-1,Mathf.CeilToInt(c.y+reach/vdy));
+        CaptureHistoryTiles(x0,y0,x1,y1);
         for (int k = 0; k < load.count; k++)
         {
             float volume = load.pool[k] + load.skin[k];
             if (volume <= 0) continue;
             float offset = (k + 0.5f) * spacing - half;
+            float u=offset/half;
+            float shoulder=Mathf.Sqrt(Mathf.Max(.08f,1-u*u));
             Vector3 mass = load.poolMass[k] + load.skinMass[k];
             for(int s=0;s<steps;s++)
             {
-                float t=s/(float)(steps-1),weight=((1-t)*(1-t)+.15f)/weightSum;
-                Vector2 p=c+new Vector2((load.axis.x*offset-load.travel.x*depth*t)/vdx,(load.axis.y*offset-load.travel.y*depth*t)/vdy);
-                int x=Mathf.Clamp(Mathf.RoundToInt(p.x),0,width-1),y=Mathf.Clamp(Mathf.RoundToInt(p.y),0,height-1),i=y*width+x;
-                CaptureHistoryTiles(x,y,x,y);
-                thickness[i]+=volume*weight/cellArea; pigment[i]+=mass*(weight/cellArea);
-                AddSurfaceLayer(i,load.skin[k]*weight/cellArea,load.skinMass[k]*(weight/cellArea),load.order[k]);
-                int bx0=Mathf.Max(0,x-2),by0=Mathf.Max(0,y-2),bx1=Mathf.Min(width-1,x+2),by1=Mathf.Min(height-1,y+2);
-                ActivateSettling(bx0,by0,bx1,by1);IncludeChanged(bx0,by0,bx1,by1);
+                float t=(s+.5f)/steps,weight=t*(1-t)/weightSum;
+                float behind=bladeWidth*.12f*u*u+depth*(1-t)*shoulder;
+                Vector2 p=c+new Vector2((load.axis.x*offset-load.travel.x*behind)/vdx,(load.axis.y*offset-load.travel.y*behind)/vdy);
+                SplatBilinear(p.x,p.y,volume*weight/cellArea,mass*(weight/cellArea),
+                    load.skin[k]*weight/cellArea,load.skinMass[k]*(weight/cellArea),load.order[k]);
             }
             PaperVolume += volume;
         }
+        ActivateSettling(x0,y0,x1,y1);IncludeChanged(x0,y0,x1,y1);
         load.Prepare(load.count);
         dirty = true;
     }

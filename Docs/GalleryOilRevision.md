@@ -10,6 +10,8 @@ Fırçanın çalışma alanı daraltıldı; aynı boya daha belirgin kalınlık 
 
 ## Spatula ve baskı
 
+Spatulanın daha sonraki temas/yük/kenar ve performans düzenlemesi: [PaletteKnifeRevision.md](PaletteKnifeRevision.md).
+
 - Spatula ince filmi tamamen kazımaz; fazlalığı taşır. Aynı hücrede tekrar eden alt piksel hareketleri boyayı tekrar tekrar toplamaz. Başlangıç temasını da işler.
 - Bırakırken uçtaki boya tek hücrelik bir duvar olmaz; kısa, ağırlıklı bir sırt olarak serilir. Hacim ve pigment korunur.
 - Baskı, temas alanındaki yüksekliği dikkate alarak yüksek boyayı düzleştirir. Merkezde sürekli oyuk açan radyal itme sınırlandı. Yerel ve korunumlu komşu alışverişi ızgara/yıldız izlerini yumuşatır.
