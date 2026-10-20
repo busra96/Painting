@@ -114,12 +114,25 @@ public static class GalleryArtDirectionAuthoring
         }
         catch(Exception e){Debug.LogException(e);EditorApplication.Exit(1);}
     }
+    public static void ApplyContactCursorsInOpenScene()
+    {
+        var game=Object.FindFirstObjectByType<GalleryGameController>();
+        if(game==null || game.gameObject.scene.path!=GalleryGameAuthoring.ScenePath)
+            throw new InvalidOperationException("Open the GalleryAtelier scene to configure its contact cursors.");
+        ConfigureKnifeCursor(game);EditorSceneManager.MarkSceneDirty(game.gameObject.scene);
+        EditorSceneManager.SaveScene(game.gameObject.scene);AssetDatabase.SaveAssets();
+    }
     private static void ConfigureKnifeCursor(GalleryGameController game)
     {
         // Reuse the project's transparent painted spreader. Its blade width matches the contact
         // kernel; the old long palette-knife crop included an opaque background and hid the paint.
         foreach(var tool in game.rules.painting.tools)
         {
+            if(tool is PressToolDefinition)
+            {
+                tool.cursor=ContactSprite("PressContactBody","Cursor_Press",new Vector2(.5f,.5f));
+                tool.cursorTip=null;tool.cursorScale=1;EditorUtility.SetDirty(tool);continue;
+            }
             if(!(tool is KnifeToolDefinition))continue;
             tool.cursor=KnifeSprite("KnifeContactBody","Cursor_Knife");
             tool.cursorTip=KnifeSprite("KnifeContactPaint","Cursor_KnifeTip");
@@ -132,11 +145,13 @@ public static class GalleryArtDirectionAuthoring
         tip.color=Color.clear;cursor.tip=tip;
     }
     private static Sprite KnifeSprite(string name,string source)
+        => ContactSprite(name,source,new Vector2(.5f,.63f));
+    private static Sprite ContactSprite(string name,string source,Vector2 pivot)
     {
         string path=Art+name+".asset";var existing=AssetDatabase.LoadAssetAtPath<Sprite>(path);
         if(existing!=null)return existing;
         var texture=AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Painting/Art/Atelier/"+source+".png");
-        var sprite=Sprite.Create(texture,new Rect(0,0,texture.width,texture.height),new Vector2(.5f,.63f),100,0,SpriteMeshType.FullRect);
+        var sprite=Sprite.Create(texture,new Rect(0,0,texture.width,texture.height),pivot,100,0,SpriteMeshType.FullRect);
         sprite.name=name;AssetDatabase.CreateAsset(sprite,path);return sprite;
     }
     private static GalleryUITheme Theme()

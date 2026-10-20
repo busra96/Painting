@@ -9,7 +9,7 @@ namespace PaintingGame.Atelier
         private float bladeWidth;
         private Vector3 anchor;
         public Color CarriedColor => load != null ? load.PaintColor : Color.clear;
-        public float CarriedAmount => load != null ? Mathf.Clamp01(load.Volume / Mathf.Max(.001f,Surface.UnitVolume * .4f)) : 0;
+        public float CarriedAmount => load != null ? Mathf.Clamp01(load.ContactVolume / Mathf.Max(.001f,Surface.UnitVolume * .1f)) : 0;
 
         public KnifeTool(KnifeToolDefinition definition) => this.definition = definition;
         public override PaintToolDefinition Definition => definition;

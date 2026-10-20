@@ -28,3 +28,9 @@ Fiziksel Android cihazında APK/FPS testi yapılmadı. Hedef görsele benzetme s
 ## 20 Ekim: spatula teması ve boya yükü
 
 Spatula revizyonundan sonra GalleryGameChecks 152, AtelierToolChecks 8, PaintingMechanicChecks 76, WorkshopVisualChecks 66 ve PaintHistoryChecks 19 yeniden çalıştırıldı: **321 kontrol**, beş süreç de exit 0. Loglar `Logs/*-KnifeVerified.log`; davranış ve performans ayrıntıları [PaletteKnifeRevision.md](PaletteKnifeRevision.md) içinde. Bu sayım, yukarıdaki önceki yedi gruplu doğrulamanın yerine geçen bir toplam değildir; son revizyonda tekrar çalıştırılan beş grubu gösterir.
+
+## Kaldırma izi ve baskı pivotu düzeltmesi
+
+Kullanıcının uzun kahverengi şerit örneğiyle yeni bir görsel regresyon eklendi. Kaldırma öncesi/sonrası render'da **0 piksel değişiyor**. Üç farklı noktada yeni baskı temasının mouse konumunda olduğu, çap ve pivotun fiziksel alanla eşleştiği, bırakınca eski konumda görsel kalmadığı doğrulandı.
+
+Bu düzeltmede açık Unity Editor içinde GalleryGameChecks **163**, AtelierToolChecks **8** yeniden geçti; toplam **171**. Test kayıtları oyuncu profilinden ayrıdır. Güncel model ve ölçümler [PaletteKnifeRevision.md](PaletteKnifeRevision.md) içinde.

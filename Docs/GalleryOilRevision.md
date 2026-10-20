@@ -13,7 +13,7 @@ Fırçanın çalışma alanı daraltıldı; aynı boya daha belirgin kalınlık 
 Spatulanın daha sonraki temas/yük/kenar ve performans düzenlemesi: [PaletteKnifeRevision.md](PaletteKnifeRevision.md).
 
 - Spatula ince filmi tamamen kazımaz; fazlalığı taşır. Aynı hücrede tekrar eden alt piksel hareketleri boyayı tekrar tekrar toplamaz. Başlangıç temasını da işler.
-- Bırakırken uçtaki boya tek hücrelik bir duvar olmaz; kısa, ağırlıklı bir sırt olarak serilir. Hacim ve pigment korunur.
+- Spatula boyayı hareket sırasında tuval üzerinde taşır. Kaldırma anında yeni bir sırt/parça eklenmez; hacim ve pigment korunur. Güncel model ve görüntü karşılaştırması `PaletteKnifeRevision.md` içindedir.
 - Baskı, temas alanındaki yüksekliği dikkate alarak yüksek boyayı düzleştirir. Merkezde sürekli oyuk açan radyal itme sınırlandı. Yerel ve korunumlu komşu alışverişi ızgara/yıldız izlerini yumuşatır.
 - Sürüklenen baskının örnekleri kat edilen mesafeye bağlıdır; her karede sabit bir darbe uygulanmaz.
 - **ALET AYARI** düğmesinden genişliği ve kuvveti değiştirebilirsin. Hafif spatula kalın film, güçlü spatula ince ve uzun film bırakır. Fırça basınçla genişler. Baskı aracı yüksek kuvvette daha hızlı düzleştirir.

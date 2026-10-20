@@ -18,6 +18,7 @@ namespace PaintingGame.Atelier
         private float hideAt = -1;
         private float sizeMultiplier = 1;
         private bool contactLocked;
+        private bool pressContact;
         public void SetSizeMultiplier(float size,PaintToolDefinition tool,ImpastoPaintSurface surface)
         { sizeMultiplier=size; if(tool!=null)SetTool(tool,surface); }
 
@@ -35,7 +36,8 @@ namespace PaintingGame.Atelier
             if (body != null) body.sprite = tool.cursor;
             if (tip != null) { tip.sprite = tool.cursorTip; tip.enabled = tool.cursorTip != null; }
             follows = tool.cursorFollowsStroke;
-            contactLocked = tool is KnifeToolDefinition;
+            pressContact = tool is PressToolDefinition;
+            contactLocked = tool is KnifeToolDefinition || pressContact;
             float worldSize = tool.WorldSize(surface) * 2 * tool.cursorScale * sizeMultiplier;
             float spriteSize = tool.cursor != null ? Mathf.Max(0.0001f, tool.cursor.bounds.size.x) : 1;
             // Parent x scale is 1, so local x size equals visual canvas units.
@@ -46,6 +48,7 @@ namespace PaintingGame.Atelier
         public void HideNow()
         {
             hideAt = -1;
+            pressed = false;
             SetVisible(false);
             enabled = false;
         }
@@ -63,6 +66,7 @@ namespace PaintingGame.Atelier
 
         public void Follow(Vector3 point, Vector2 travel, bool down)
         {
+            if(pressContact && !down){HideNow();return;}
             point.z = transform.position.z;
             if (transform.parent != null) point = transform.parent.InverseTransformPoint(point);
             point.z = transform.localPosition.z;
@@ -77,8 +81,9 @@ namespace PaintingGame.Atelier
             {
                 transform.localPosition = point;
                 pressScale = 1;
-                if (direction.sqrMagnitude > .0001f)
+                if (follows && direction.sqrMagnitude > .0001f)
                     angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90;
+                else angle = 0;
                 transform.localRotation = Quaternion.Euler(0, 0, angle);
             }
             hideAt = down ? -1 : Time.time + 0.25f;
@@ -95,7 +100,7 @@ namespace PaintingGame.Atelier
                 float targetAngle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90;
                 angle = contactLocked && pressed ? targetAngle : Mathf.LerpAngle(angle, targetAngle, 1 - Mathf.Exp(-turnSharpness * dt));
             }
-            else angle = Mathf.LerpAngle(angle, maxTilt * (pressed ? 1 : 0.4f), 1 - Mathf.Exp(-turnSharpness * dt));
+            else angle = contactLocked && pressed ? 0 : Mathf.LerpAngle(angle, maxTilt * (pressed ? 1 : 0.4f), 1 - Mathf.Exp(-turnSharpness * dt));
             transform.localRotation = Quaternion.Euler(0, 0, angle);
             // Squash on touch-down, spring back while working; shrink away after lifting.
             float goal = pressed ? 1 : 0.6f;

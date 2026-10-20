@@ -95,7 +95,7 @@ public static class AtelierToolChecks
             from = to;
         }
         surface.EndKnife(knife, 0.3f * w);
-        Conserved(surface, v0, m0, "Palette knife (diagonal pull + lift ridge)");
+        Conserved(surface, v0, m0, "Palette knife (diagonal pull and unchanged lift)");
 
         // Press pad: holding and dragging.
         Seed();
@@ -206,6 +206,7 @@ public static class AtelierToolChecks
     {
         SessionState.SetBool(Key, false);
         string summary = "ATELIER TOOL CHECKS " + passed + " passed, " + failed + " failed\n" + string.Join("\n", report);
+        if(!Application.isBatchMode)System.IO.File.WriteAllText("Logs/AtelierInteractiveChecks.txt",summary);
         if (failed == 0) Debug.Log(summary); else Debug.LogError(summary);
         EditorApplication.isPlaying = false;
         if (Application.isBatchMode) EditorApplication.Exit(failed == 0 ? 0 : 1);

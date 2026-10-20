@@ -7,6 +7,7 @@ namespace PaintingGame.Atelier
         private readonly PressToolDefinition definition;
         private float seed;
         private float spacingCarry;
+        private Vector3 lastContact;
 
         public PressTool(PressToolDefinition definition) => this.definition = definition;
         public override PaintToolDefinition Definition => definition;
@@ -35,9 +36,15 @@ namespace PaintingGame.Atelier
             spacingCarry = distance - (next-spacing);
         }
 
-        public override void End(Vector3 point) { }
+        public override void End(Vector3 point)
+        {
+            if(Surface.VisualDistance(lastContact,point)>Surface.CellSize*.25f)Press(point,definition.dragStrength);
+        }
 
-        private void Press(Vector3 point, float strength) =>
+        private void Press(Vector3 point, float strength)
+        {
             Surface.Press(point, WorkingSize, strength * Mathf.Lerp(.35f,1.35f,Context.Pressure), definition.textureScale, seed);
+            lastContact=point;
+        }
     }
 }

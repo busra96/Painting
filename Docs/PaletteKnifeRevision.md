@@ -1,31 +1,38 @@
-# Spatula: temas, boya taşıma ve kaldırma
+# Spatula ve baskı teması
 
 Sahne: `Assets/Painting/Scenes/GalleryAtelier.unity`.
 
-Önceki sürümde spatula boyayı sabit ve çok ince bir filme indiriyor, gövdedeki boyanın çıkışını üst renk katmanına bağlıyordu. Bu yüzden bıçakta kalan büyük hacim kaldırırken sert bir duvar oluşturuyordu. Dar bir damlanın üst katmanı yana taşınmadığından geniş bıçak da dar ve cetvel gibi bir iz bırakıyordu.
+## Spatulayı kaldırırken parça oluşması
 
-Yeni davranış:
+Önceki uygulama, bıçakta tuttuğu boyayı `EndKnife` içinde kısa bir ayak izine döküyordu. Hacim korunsa bile bu, fare bırakılınca yeni bir hilal/parça oluşturuyordu. İnce kalan film de özellikle kahverengide gri görünüyordu.
 
-- Temas örnekleri kare sayısından bağımsız, sabit kat edilen mesafeye bağlı. İşlenmeyen mesafe sonraki giriş olayına taşınıyor. Çok küçük hareketler kaybolmuyor.
-- Bıçağın dönüşü kat edilen mesafeye göre ilerliyor. Renk haznesinin sağ/sol sırası dönüş ve ters çekişte korunuyor; ekrandaki bıçak aynı yönü kullanıyor.
-- Hafif kavisli kenar ve yumuşak omuzlar, boyayı bıçak yüküne göre değişen kalınlıkta seriyor. Gövde ve üst renk katmanı çekiş boyunca boşalıyor; iki katman da bıçak boyunca yana hareket edebiliyor.
-- Güçlü baskı daha ince ve daha uzağa taşınan film bırakıyor. Aynı genişlik ve çekiş mesafesinde fazla boya daha kalın iz veriyor. Boş spatula temiz tuvale boya eklemiyor.
-- Alt hücre konumuna göre dört hücreye dağıtım, çapraz/eğri izlerdeki delikleri kapatıyor. Sadece temas bandındaki korunumlu yerel düzleştirme, ızgara kabartısını azaltıyor; tüm tuvali bulanıklaştırmıyor.
-- Kaldırırken kalan boya kısa bir çizgiye yığılmak yerine kavisli, yumuşak bir ayak izine bırakılıyor. Hacim, pigment ve geri alma kayıtları korunuyor.
-- Görünen spatula çalışma alanıyla aynı genişlikte. Temas noktası parmağın gerisinde gecikmiyor. Şeffaf mevcut spatula görseli kullanılıyor; uçtaki renk seçili tüpten değil, tuvalden alınan gerçek boyadan geliyor.
+Spatula artık `ImpastoPaletteKnife.cs` içindeki korunumlu yüzey taşımasını kullanır:
 
-## Düzenleme
+- Her temas, bıçağın altındaki boyayı önce geçici bir çalışma tamponuna alır, ardından aynı işlem içinde ileri ve yana dağıtır. Kalıcı boya her zaman tuval üzerindedir; gizli bir hazneye alınmaz.
+- Metalin temas yüksekliği, kuvvet ve temas eden boya miktarına göre değişir. Daha çok boya daha dolgun film bırakır. Güçlü baskı çalışılan filmi inceltir ve kapsanan alanı genişletir.
+- Temaslar sabit kat edilen mesafeye göre işlenir. Kare başına olay sayısı değişince aynı çekişin profili değişmez.
+- Kavisli kenar, yuvarlatılmış omuzlar, alt hücre dağıtımı ve yerel düzleştirme çapraz/eğri izlerde kopmayı azaltır. Boyanın kendi rengi ve kabarıklığı korunur.
+- `EndKnife` yalnızca alet durumunu temizler. Tuvalde boya eklemez, taşımaz veya geri damgalamaz. Bırakmadan önce görülen yüzey ile bıraktıktan sonraki yüzey aynıdır.
+- Tüm kaynak hücreler dağıtımdan önce örneklenir; tarama yönü gelen boyayı aynı temasta tekrar tekrar taşımaz. Yalnızca döndürülmüş temas alanının sınırları taranır. Tampon boyut değiştiğinde büyür, sabit boyutta hareket ve kaldırma sırasında managed allocation yapılmaz.
 
-`Settings/Gallery/Oil_knife.asset`: `size`, `filmScale`, `pickup`. Ekrandaki **ALET AYARI** genişlik ve kuvveti değiştirir. Yanal boya hareketi `GalleryOilPaint.asset / LateralFlow` ile ilişkilidir. Üst katman/gövde ayrımı, eski hedef görsel sahnesinin renk sırası sistemini kullanmaya devam eder.
+## Baskı fare ucunda
 
-`GalleryArtDirectionAuthoring.ConfigureKnifeCursor` düzenlenebilir Sprite asset'lerini ve sahnedeki `Carried Paint On Blade` renderer'ını bağlar. Günlük görsel düzenleme için sahneyi yeniden üretmek gerekmez. Kaynak görseller `Art/Atelier/Cursor_Knife*.png`, yeni Sprite tanımları `Art/Gallery/KnifeContact*.asset` içindedir.
+`PressContactBody.asset` mevcut şeffaf baskı görselini merkez pivotla kullanır. Görünen çap gerçek çalışma çapıyla eşleşir. Temas konumu gecikmeden takip edilir, yeni tıklamada eski konumdan kaymaz, bırakıldığında önceki noktada görsel kalmaz. Bir sürüklemenin son noktası örnek aralığına denk gelmediyse son temas o noktada tamamlanır.
+
+## Ayarlar ve sahne
+
+`Settings/Gallery/Oil_knife.asset`: `size`, `filmScale`, `pickup`; `Oil_press.asset`: boyut, tutma ve sürükleme kuvveti. **ALET AYARI** genişlik ve kuvveti değiştirir. `GalleryOilPaint.asset / SurfaceVariation` ince yüzey düzensizliğini belirler.
+
+Baskı Sprite'ı `Art/Gallery/PressContactBody.asset` içindedir. Sprite, alet ayarı ve sahne bağlantıları düzenlenebilir asset'lerdir. Günlük düzenleme için sahneyi yeniden üretmek gerekmez.
 
 ## Doğrulama
 
-Unity 6000.3.8f1, Windows Editor Play Mode; testler oyuncu kaydı yerine `Logs` altında izole kayıtlar kullanır. GalleryGameChecks, 1.200 küçük hareketle tek uzun çekişin film profilini; yükteki/tuvaldeki toplam hacmi; boya miktarı ve baskı etkisini; dönüş, ters çekiş ve kenarda kaldırmayı; gerçek cursor rengi/genişliğini; geri almayı; çapraz filmde kesintisiz kapsama alanını ve ısınma sonrası sıfır managed allocation'ı doğrular.
+Unity 6000.3.8f1, açık Windows Editor içinde izole test kaydıyla: **GalleryGameChecks 163**, **AtelierToolChecks 8**; toplam **171 kontrol** geçti. Önceki doğrulama sayımları `GalleryAtelierValidation.md` içindedir.
 
-Son çalıştırma: GalleryGameChecks **152**, AtelierToolChecks **8**, PaintingMechanicChecks **76**, WorkshopVisualChecks **66**, PaintHistoryChecks **19**; toplam **321** kontrol geçti. Beş süreç de exit code 0 ile tamamlandı. Loglar `Logs/*-KnifeVerified.log` altında.
+Yeni regresyon, gerçek tüp/fırçayla çizilmiş uzun kahverengi şeritleri spatulayla işler; alet görseli hariç kaldırmadan önceki ve sonraki render'ı piksel piksel karşılaştırır: **0 değişen piksel**. Ayrıca üç ayrı baskı konumu, merkez pivot/çap, bırakma, boya miktarı/kuvveti, 1.200 küçük hareketle tek çekiş karşılaştırması, dönüş/kenar/undo, hacim/pigment ve sıfır managed allocation kontrol edilir.
 
-Son görüntüler: `Docs/Previews/GalleryAtelier-KnifeStrokes.png`, `GalleryAtelier-KnifeContact.png`, `GalleryAtelier-OilRelief.png`. Bunlar Unity'nin gerçek boya alanı ve kamera render'ından alınır.
+Loglar `Logs/GalleryInteractiveTrace.log`, `GalleryInteractiveChecks.txt`, `AtelierInteractiveChecks.txt` altında. Açık editör testleri uygulamayı kapatmaz; galeri testinden sonra önceki kayıtlı sahne düzeni geri yüklenir. Yerel editör doğrulama yardımcısı `GalleryEditorValidation`, `Logs/GalleryEditor.request` dosyasında yalnızca adlandırılmış test/yenileme işlemlerini kabul eder.
 
-Son test ölçümü yaklaşık **12,2 ms / üç dünya birimlik tam çekiş** ve **0 B managed allocation** (yüklenmiş boyanın art arda ileri/geri taşındığı masaüstü çekirdek testi). Bu, bir normal karedeki kısa parmak hareketinin veya Android APK'nın FPS ölçümü değildir. Fiziksel Android cihaz testi yapılmadı.
+Son masaüstü çekirdek ölçümleri yaklaşık **17–19 ms / üç dünya birimlik tam çekiş**, **0 B managed allocation**. Bu tüm bir çekişin maliyetidir; normal bir karenin veya Android FPS'nin ölçümü değildir. Fiziksel Android cihaz testi yapılmadı.
+
+Gerçek Unity render'ları: `Docs/Previews/GalleryAtelier-KnifeBeforeLift.png`, `GalleryAtelier-KnifeAfterLift.png`, `GalleryAtelier-KnifeStrokes.png`.

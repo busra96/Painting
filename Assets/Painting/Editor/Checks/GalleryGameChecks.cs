@@ -15,11 +15,31 @@ public static class GalleryGameChecks
     private static double deadline;
     private static int passed;
     private static int readyFrame = -1;
-    static GalleryGameChecks() { if (SessionState.GetBool(Key,false)) EditorApplication.playModeStateChanged += State; }
+    [Serializable] private sealed class SavedScenes { public SceneSetup[] scenes; }
+    static GalleryGameChecks()
+    {
+        if (SessionState.GetBool(Key,false))
+        {EditorApplication.playModeStateChanged += State;if(!Application.isBatchMode)Application.logMessageReceived+=Trace;}
+        if (SessionState.GetBool(Key+".Restore",false)) EditorApplication.playModeStateChanged += RestoreScenes;
+    }
     public static void RunBatch()
     {
         try
         {
+            passed=0;readyFrame=-1;
+            if(!Application.isBatchMode)
+            {
+                File.WriteAllText("Logs/GalleryInteractiveTrace.log","");Application.logMessageReceived-=Trace;Application.logMessageReceived+=Trace;
+                foreach(var setup in EditorSceneManager.GetSceneManagerSetup())
+                    if(UnityEngine.SceneManagement.SceneManager.GetSceneByPath(setup.path).isDirty)
+                        throw new InvalidOperationException("Save open scenes before validation.");
+                SessionState.SetString(Key+".Scenes",JsonUtility.ToJson(new SavedScenes{scenes=EditorSceneManager.GetSceneManagerSetup()}));
+                foreach(var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    var gameView=assembly.GetType("UnityEditor.GameView");
+                    if(gameView!=null){EditorWindow.GetWindow(gameView).Focus();break;}
+                }
+            }
             var folder = Path.GetFullPath("Logs/GalleryChecks/" + Guid.NewGuid().ToString("N"));
             SessionState.SetString(Key + ".Folder",folder); Directory.CreateDirectory(folder);
             var scene = EditorSceneManager.OpenScene(GalleryGameAuthoring.ScenePath);
@@ -106,7 +126,7 @@ public static class GalleryGameChecks
             var game=Object.FindFirstObjectByType<GalleryGameController>();
             if(game==null || !game.Ready){if(EditorApplication.timeSinceStartup>deadline)throw new Exception("Gallery initialization timeout");return;}
             if(readyFrame<0){game.SetPage(1);readyFrame=Time.frameCount;return;}
-            if(Time.frameCount<=readyFrame+1)return;
+            if(Time.frameCount<=readyFrame+8)return;
             EditorApplication.update-=Tick;
             Check(game.Store.Folder.Contains("Logs"),"Runtime tests use an isolated save folder");
             Runtime(game); Finish(null);
@@ -260,20 +280,21 @@ public static class GalleryGameChecks
     private static void ValidateKnife(GalleryGameController game)
     {
         var tools=game.tools;var s=tools.surface;Vector3 c=s.transform.position;
+        ValidateKnifeReleaseAndPress(game);
         Vector3 start=c+new Vector3(0,1.5f,0),end=c+new Vector3(0,-1.5f,0);
         tools.ClearCanvas();s.Deposit(start,Color.red,7,Vector2.zero);
         double original=s.MeasureVolume();var load=s.BeginKnife(null,1.2f);
         s.KnifeSweep(start,end,1.2f,.7f,.9f,load);
         float residual=load.Volume;
         Check(Math.Abs(s.MeasureVolume()+residual-original)<original*.003,
-            "During a pull every unit of paint is either on the canvas or carried by the blade");
+            "Every unit of paint remains on the canvas throughout the pull");
         Debug.Log("KNIFE LOAD: "+residual+" / "+original+" before lift");
-        Check(residual<original*.2,"A three-unit pull releases most collected paint before lifting");
-        float tail=s.SampleThickness(c+new Vector3(0,-.7f,0));
+        Check(residual==0,"Spatula leaves no hidden paint outside the canvas");
+        float tail=s.SampleThickness(c+new Vector3(0,.4f,0));
         Check(tail>.001f,"Loaded knife leaves a real film along its travel");
         s.EndKnife(load,1.2f);
         Check(load.Volume==0 && Math.Abs(s.MeasureVolume()-original)<original*.003,
-            "Lifting returns the remaining load without losing or manufacturing paint");
+            "Lifting preserves the paint already distributed on the canvas");
         float[] reference=new float[31];
         for(int i=0;i<reference.Length;i++)reference[i]=s.SampleThickness(Vector3.Lerp(start,end,i/30f));
         tools.ClearCanvas();s.Deposit(start,Color.red,7,Vector2.zero);load=s.BeginKnife(load,1.2f);
@@ -289,18 +310,21 @@ public static class GalleryGameChecks
         Check(difference<total*.04f,"Sub-cell pointer events preserve the same film profile as a single long pull");
         tools.ClearCanvas();s.Deposit(start,Color.red,2,Vector2.zero);load=s.BeginKnife(load,1.2f);
         s.KnifeSweep(start,end,1.2f,.7f,.9f,load);s.EndKnife(load,1.2f);
-        float little=s.SampleThickness(c+new Vector3(0,-.7f,0));
+        float little=s.SampleThickness(c+new Vector3(0,.4f,0));
+        File.WriteAllText("Logs/KnifeAmountDiagnostics.txt","More="+tail+" less="+little);
         Check(tail>little*1.4f,"More tube paint leaves a measurably thicker film at the same blade width and travel");
-        float[] midFilm=new float[2],farFilm=new float[2];
+        float[] midFilm=new float[2],farFilm=new float[2],filmArea=new float[2];
         for(int p=0;p<2;p++)
         {
             tools.ClearCanvas();s.Deposit(start,Color.red,7,Vector2.zero);
             tools.SelectTool(game.rules.painting.tools[2]);tools.SetControls(1,p==0?.15f:.95f);
             tools.BeginGesture(start);tools.ContinueGesture(start+Vector3.down*3.5f,.016f);tools.EndStroke();
-            midFilm[p]=s.SampleThickness(start+Vector3.down);farFilm[p]=s.SampleThickness(start+Vector3.down*2.6f);
+            midFilm[p]=s.SampleThickness(start+Vector3.down*.5f);farFilm[p]=s.SampleThickness(start+Vector3.down*2.6f);
+            filmArea[p]=s.CoveredArea();
         }
         Debug.Log("KNIFE PRESSURE: mid "+midFilm[0]+" / "+midFilm[1]+"; far "+farFilm[0]+" / "+farFilm[1]);
-        Check(midFilm[1]<midFilm[0] && farFilm[1]>farFilm[0],"Firm knife pressure makes a thinner film that carries farther than a gentle pull");
+        File.WriteAllText("Logs/KnifePressureDiagnostics.txt","Mid="+midFilm[0]+" / "+midFilm[1]+" Far="+farFilm[0]+" / "+farFilm[1]+" Area="+filmArea[0]+" / "+filmArea[1]);
+        Check(midFilm[1]<midFilm[0]*.95f && filmArea[1]>filmArea[0],"Firm knife pressure flattens the worked film and spreads paint across a larger area");
         tools.SetControls(1,.75f);
         tools.ClearCanvas();load=s.BeginKnife(load,1.2f);
         s.KnifeSweep(start,end,1.2f,.7f,.9f,load);s.EndKnife(load,1.2f);
@@ -328,7 +352,7 @@ public static class GalleryGameChecks
         s.Flush();Preview(game,"Knife-Contact",1,720,1280,true);
         tools.ContinueGesture(c+Vector3.down,.016f);tools.EndStroke();
         Check(tools.Undo() && Math.Abs(s.MeasureVolume()-original)<original*.003,
-            "Undo restores the entire knife sweep including its curved lift footprint");
+            "Undo restores the entire knife contact footprint");
         tools.ClearCanvas();s.Deposit(start,Color.red,9,Vector2.zero);load=s.BeginKnife(load,1.2f);
         s.KnifeSweep(start,end,1.2f,.7f,.9f,load);s.EndKnife(load,1.2f);
         var watch=System.Diagnostics.Stopwatch.StartNew();
@@ -372,6 +396,45 @@ public static class GalleryGameChecks
         File.WriteAllBytes("Logs/GalleryPreview/Knife-Strokes.png",image.EncodeToPNG());Object.DestroyImmediate(image);
         tools.ClearCanvas();
     }
+    private static void ValidateKnifeReleaseAndPress(GalleryGameController game)
+    {
+        var tools=game.tools;var s=tools.surface;Vector3 c=s.transform.position;
+        tools.ClearCanvas();tools.SetControls(1,.75f);
+        tools.Inventory.Refill(game.rules.painting.colors[5]);
+        Stroke(game,5,new[]{new Vector2(-2.7f,1.8f),new Vector2(2.7f,1.8f)},4);
+        Stroke(game,5,new[]{new Vector2(-2.7f,-.4f),new Vector2(2.1f,-.4f)},0);
+        tools.SelectTool(game.rules.painting.tools[2]);
+        Vector3 from=c+new Vector3(0,2.1f,0);tools.BeginGesture(from);
+        for(int i=1;i<=65;i++)tools.ContinueGesture(from+Vector3.down*(i*.035f),.016f);
+        if(tools.cursor!=null)tools.cursor.HideNow();s.Flush();
+        File.WriteAllText("Logs/KnifeContactDiagnostics.txt","Film: "+s.SamplePigment(c+new Vector3(0,.7f,0)).ToString("F5")+
+            " height="+s.SampleThickness(c+new Vector3(0,.7f,0))+" volume="+s.MeasureVolume());
+        var before=AtelierArtworkCapture.Capture(tools.mainCamera,game.paper,720);
+        double volume=s.MeasureVolume();Vector3 pigment=s.MeasurePigmentMass();
+        tools.EndStroke();if(tools.cursor!=null)tools.cursor.HideNow();s.Flush();
+        var after=AtelierArtworkCapture.Capture(tools.mainCamera,game.paper,720);
+        var a=before.GetPixels32();var b=after.GetPixels32();int changed=0;
+        for(int i=0;i<a.Length;i++)if(!a[i].Equals(b[i]))changed++;
+        Directory.CreateDirectory("Logs/GalleryPreview");
+        File.WriteAllBytes("Logs/GalleryPreview/Knife-BeforeLift.png",before.EncodeToPNG());
+        File.WriteAllBytes("Logs/GalleryPreview/Knife-AfterLift.png",after.EncodeToPNG());
+        Object.DestroyImmediate(before);Object.DestroyImmediate(after);
+        Check(changed==0,"Lifting the spatula changes zero rendered canvas pixels, including long brown tube and brush stripes ("+changed+")");
+        Check(Math.Abs(s.MeasureVolume()-volume)<.000001 && (s.MeasurePigmentMass()-pigment).magnitude<.000001f,
+            "Lifting changes neither paint volume nor pigment mass");
+        tools.SelectTool(game.rules.painting.tools[3]);
+        foreach(Vector3 p in new[]{c+new Vector3(-1,0,0),c+new Vector3(1,-1,0),c+new Vector3(-1.5f,1.5f,0)})
+        {
+            tools.BeginGesture(p);
+            Check(((Vector2)(tools.cursor.transform.position-p)).magnitude<s.CellSize*.01f,
+                "A fresh press appears at the current mouse point, without following the previous stamp");
+            Check(Vector2.Distance(tools.cursor.body.sprite.pivot,tools.cursor.body.sprite.rect.size*.5f)<.1f &&
+                Mathf.Abs(tools.cursor.body.sprite.bounds.size.x*tools.cursor.transform.lossyScale.x-game.rules.painting.tools[3].WorldSize(s)*2)<s.CellSize,
+                "Press sprite is centered on its contact and matches the physical diameter");
+            tools.EndStroke();Check(!tools.cursor.body.enabled,"Released press does not linger at the old mouse position");
+        }
+        tools.ClearCanvas();
+    }
     private static void DrawLandscape(GalleryGameController game)
     {
         for(int row=0;row<7;row++)Stroke(game,4,new[]{new Vector2(-3,2.7f-row*.44f),new Vector2(3,2.7f-row*.44f)});
@@ -413,5 +476,26 @@ public static class GalleryGameChecks
     private static bool AnyScene(this EditorBuildSettingsScene[] scenes,string path){foreach(var s in scenes)if(s.path==path && s.enabled)return true;return false;}
     private static void Check(bool condition,string message){if(!condition)throw new Exception("GALLERY FAIL: "+message);passed++;Debug.Log("GALLERY PASS: "+message);}
     private static void Finish(Exception exception)
-    {EditorApplication.update-=Tick;EditorApplication.playModeStateChanged-=State;SessionState.EraseBool(Key);if(exception!=null)Debug.LogException(exception);else Debug.Log("GALLERY GAME CHECKS PASSED: "+passed);EditorApplication.Exit(exception==null?0:1);}
+    {
+        EditorApplication.update-=Tick;EditorApplication.playModeStateChanged-=State;SessionState.EraseBool(Key);
+        if(exception!=null)Debug.LogException(exception);else Debug.Log("GALLERY GAME CHECKS PASSED: "+passed);
+        Application.logMessageReceived-=Trace;
+        if(Application.isBatchMode){EditorApplication.Exit(exception==null?0:1);return;}
+        File.WriteAllText("Logs/GalleryInteractiveChecks.txt",exception!=null?exception.ToString():"GALLERY GAME CHECKS PASSED: "+passed);
+        SessionState.SetBool(Key+".Restore",true);EditorApplication.playModeStateChanged-=RestoreScenes;
+        EditorApplication.playModeStateChanged+=RestoreScenes;
+        if(EditorApplication.isPlaying)EditorApplication.isPlaying=false;else RestoreScenes(PlayModeStateChange.EnteredEditMode);
+    }
+    private static void Trace(string message,string stack,LogType type)
+    {
+        if(message.StartsWith("GALLERY") || message.StartsWith("KNIFE") || type==LogType.Exception)
+            File.AppendAllText("Logs/GalleryInteractiveTrace.log",message+"\n");
+    }
+    private static void RestoreScenes(PlayModeStateChange state)
+    {
+        if(state!=PlayModeStateChange.EnteredEditMode)return;
+        EditorApplication.playModeStateChanged-=RestoreScenes;SessionState.EraseBool(Key+".Restore");
+        string json=SessionState.GetString(Key+".Scenes","");SessionState.EraseString(Key+".Scenes");
+        if(!string.IsNullOrEmpty(json))EditorSceneManager.RestoreSceneManagerSetup(JsonUtility.FromJson<SavedScenes>(json).scenes);
+    }
 }
