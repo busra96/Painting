@@ -14,6 +14,8 @@ Shader "Painting/Impasto Paper"
         _BladeY ("Blade position", Float) = 1
         _BackdropCanvas ("Reveal canvas artwork", Float) = 0
         _PaperSize ("Paper size and cell size", Vector) = (8.51,12.61,0.022,0.022)
+        _SpriteUVRect ("Sprite texture region", Vector) = (0,0,1,1)
+        _ImpastoStyle ("Sculpted oil lighting", Range(0,1)) = 0
     }
     SubShader
     {
@@ -27,13 +29,16 @@ Shader "Painting/Impasto Paper"
             #pragma target 3.0
             #include "UnityCG.cginc"
             sampler2D _PigmentTex, _HeightTex, _ReservoirTex;
-            float4 _HeightTex_TexelSize, _Color, _PaperSize;
+            float4 _HeightTex_TexelSize, _Color, _PaperSize, _SpriteUVRect;
             float _Relief, _Gloss, _ShadowStrength, _BladeY, _BladeVisible, _BackdropCanvas;
+            float _ImpastoStyle;
             struct appdata { float4 vertex:POSITION; float2 uv:TEXCOORD0; float4 color:COLOR; };
             struct v2f { float4 pos:SV_POSITION; float2 uv:TEXCOORD0; float4 color:COLOR; };
             v2f vert(appdata v)
             {
-                v2f o; o.pos=UnityObjectToClipPos(v.vertex); o.uv=v.uv; o.color=v.color*_Color; return o;
+                v2f o; o.pos=UnityObjectToClipPos(v.vertex);
+                o.uv=(v.uv-_SpriteUVRect.xy)/max(_SpriteUVRect.zw,float2(0.00001,0.00001));
+                o.color=v.color*_Color; return o;
             }
             float noise(float2 p) { return frac(sin(dot(p,float2(127.1,311.7)))*43758.5453); }
             float meniscus(float y, float volume)
@@ -87,7 +92,7 @@ Shader "Painting/Impasto Paper"
                 albedo.rgb+= (1-albedo.a)*(1-_BackdropCanvas);
                 albedo.rgb*=i.color.rgb;
                 float painted=smoothstep(0.002,0.025,h);
-                float diffuse=0.63+0.48*saturate(dot(n,light));
+                float diffuse=lerp(0.63+0.48*saturate(dot(n,light)),0.43+0.72*saturate(dot(n,light)),_ImpastoStyle);
                 float wetness=smoothstep(0.015,0.35,h);
                 float broad=pow(saturate(dot(n,halfway)),lerp(14,24,wetness))*0.10;
                 float sheen=pow(saturate(dot(n,halfway)),lerp(50,95,wetness))*_Gloss;
@@ -96,7 +101,7 @@ Shader "Painting/Impasto Paper"
                 float shadow=0;
                 [unroll] for(int k=1;k<=3;k++)
                 {
-                    float distance=k*0.03;
+                    float distance=k*lerp(0.03,0.017,_ImpastoStyle);
                     float2 offset=light.xy*distance/_PaperSize.xy;
                     float neighbor=heightAt(uv+offset)*_Relief;
                     float occlusion=saturate((neighbor-h*_Relief-distance*light.z)*25);
@@ -111,6 +116,13 @@ Shader "Painting/Impasto Paper"
                 // Wet reflections retain pigment color and coverage instead of outlining every
                 // boundary with additive white light, including where two paint colors meet.
                 base+=albedo.rgb*(broad+sheen+reflection)*painted;
+                // A small warm reflection on the lit ridge gives wet oil a lacquered surface.
+                // Coverage masks it at contacts, avoiding a white contour between colours.
+                UNITY_BRANCH if (_ImpastoStyle>0.01)
+                {
+                    float oilGlint=pow(saturate(dot(n,halfway)),65)*_Gloss*0.24;
+                    base+=lerp(albedo.rgb,float3(1,0.95,0.84),0.55)*oilGlint*painted*albedo.a*_ImpastoStyle;
+                }
                 return float4(max(base,0)*i.color.a,coverage*i.color.a);
             }
             ENDCG

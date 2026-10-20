@@ -19,6 +19,7 @@ public class ColorSelection : MonoBehaviour
     private Vector3[] scales;
     private UnityAction[] listeners;
     private Tween[] selectionTweens;
+    public event Action<ColorType> Changed;
 
     private void Start()
     {
@@ -63,6 +64,7 @@ public class ColorSelection : MonoBehaviour
                 selectionTweens[i] = buttons[i].transform.DOScale(scales[i] * (selected ? 1.12f : 1f), 0.16f).SetEase(Ease.OutQuad);
             }
         }
+        Changed?.Invoke(colorType);
         if (ShadowObj != null) ShadowObj.SetActive(true);
         if (ColorPaintDecalClassList == null) return;
         foreach (ColorPaintDecalClass entry in ColorPaintDecalClassList)

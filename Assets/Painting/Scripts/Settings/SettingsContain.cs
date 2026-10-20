@@ -19,6 +19,7 @@ public class SettingsContain : ScriptableObject
     [Range(0.01f, 0.2f)] public float ReliefHeight = 0.075f;
     [Range(0, 1)] public float WetGloss = 0.32f;
     [Range(0, 1)] public float ContactShadow = 0.32f;
+    [Range(0, 1)] public float SculptedOilLighting;
 
     [Header("Legacy decal scenes")]
     [Min(0.1f)] public float PaintDistancePerDab = 2.8f;

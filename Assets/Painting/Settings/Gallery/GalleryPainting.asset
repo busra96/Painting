@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: be452e927aab9ce4a9d9685e7c160085, type: 3}
+  m_Name: AtelierConfig
+  m_EditorClassIdentifier: Assembly-CSharp::PaintingGame.Atelier.AtelierConfig
+  tools:
+  - {fileID: 11400000, guid: 5e7ce97994c94f8418aa3598929ae6f5, type: 2}
+  - {fileID: 11400000, guid: a7b14ec38d83c444ca3d30fabeac6204, type: 2}
+  - {fileID: 11400000, guid: b9c180f77bf0fa64da7bc0d279c7ad38, type: 2}
+  - {fileID: 11400000, guid: 991a78b1f50404046907df8410734dca, type: 2}
+  - {fileID: 11400000, guid: 2540f971480e7af48adc3da31e0b0235, type: 2}
+  colors:
+  - {fileID: 11400000, guid: 4708663f05e62f84b80feb23231db10e, type: 2}
+  - {fileID: 11400000, guid: eb73c8824ccec4c418dfee88022fd9e9, type: 2}
+  - {fileID: 11400000, guid: fb505cb86127e4544afa4c7ad61b86e4, type: 2}
+  - {fileID: 11400000, guid: f66050f941f4f6c489cb5ea4d20208ba, type: 2}
+  - {fileID: 11400000, guid: 9ae10e64142cb474ab0ca4b3739c1e2c, type: 2}
+  - {fileID: 11400000, guid: a92a05d21d1551344876c36c83a8f9c3, type: 2}
+  defaultTool: {fileID: 11400000, guid: 5e7ce97994c94f8418aa3598929ae6f5, type: 2}
+  artworksForExhibition: 15
+  starThresholds: {x: 35, y: 60, z: 82}
+  lowTubeWarning: 0.2
+  touchLift: 0
+  allowTestRefill: 0

@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using UnityEditor;
+using PaintingGame.Gallery;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -18,6 +19,7 @@ public static class PaintHistoryChecks
         SessionState.SetBool(Key, true);
         EditorSceneManager.OpenScene("Assets/Painting/Scenes/Painting.unity");
         EditorApplication.playModeStateChanged -= OnState; EditorApplication.playModeStateChanged += OnState;
+        PaintingSession.Select(""); // Checks always use the scene's authored target.
         EditorApplication.isPlaying = true;
     }
     private static void OnState(PlayModeStateChange state)
@@ -54,7 +56,10 @@ public static class PaintHistoryChecks
             draw.BeginStroke(point); draw.PourAt(point, 1.4f); draw.EndStroke();
             surface.AdvanceSettling(0.1f, 24); surface.Flush();
             Check(surface.SamplePigment(point).b > 0.7f && history.StrokeCount == 2, "New blue stroke covers red and records separately");
+            long savedBlueVersion = ui.ArtworkVersion;
+            int savedBlueCount = draw.PaintCount;
             ui.UndoButton.onClick.Invoke();
+            Check(ui.ArtworkVersion > savedBlueVersion, "Undo advances the artwork revision used by gallery saving");
             Check(Math.Abs(surface.MeasureVolume() - volume) < 0.00001 &&
                 Mathf.Abs(surface.SampleThickness(point) - height) < 0.00001f,
                 "Undo restores the actual wet paint thickness and volume");
@@ -62,6 +67,11 @@ public static class PaintHistoryChecks
                 "Undo restores the visible coat and its pigment order");
             Check(amount.UsedAmount == used && draw.PaintCount == count && Mathf.Abs(draw.DepositedUnits - used) < 0.0001f,
                 "Undo refunds exactly the stroke's paint and restores drawing counters");
+            ui.ColorSelection.SelectColor(ColorType.Green);
+            draw.BeginStroke(point); draw.PourAt(point, 1.4f); draw.EndStroke();
+            Check(draw.PaintCount == savedBlueCount && ui.ArtworkVersion > savedBlueVersion,
+                "Replacing an undone stroke changes the save revision even when paint count is identical");
+            ui.UndoButton.onClick.Invoke();
             WorkshopVisualChecks.CapturePreview("Tabletop-Undo", 941, 1672);
             ui.UndoButton.onClick.Invoke();
             Check(surface.MeasureVolume() == 0 && amount.UsedAmount == 0 && draw.PaintCount == 0 && !history.CanUndo,

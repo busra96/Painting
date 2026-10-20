@@ -139,9 +139,14 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
         paintMaterial.SetTexture("_ReservoirTex", reservoirTexture);
         paintMaterial.SetFloat("_BackdropCanvas", RevealBackdropCanvas ? 1 : 0);
         paintMaterial.SetVector("_PaperSize", new Vector4(paper.bounds.size.x, paper.bounds.size.y, dx, dy));
+        Rect spriteRect = paper.sprite.rect;
+        Texture2D spriteTexture = paper.sprite.texture;
+        paintMaterial.SetVector("_SpriteUVRect", new Vector4(spriteRect.x / spriteTexture.width,
+            spriteRect.y / spriteTexture.height, spriteRect.width / spriteTexture.width, spriteRect.height / spriteTexture.height));
         paintMaterial.SetFloat("_Relief", settings != null ? settings.ReliefHeight : 0.075f);
         paintMaterial.SetFloat("_Gloss", settings != null ? settings.WetGloss : 0.32f);
         paintMaterial.SetFloat("_ShadowStrength", settings != null ? settings.ContactShadow : 0.32f);
+        paintMaterial.SetFloat("_ImpastoStyle", settings != null ? settings.SculptedOilLighting : 0);
         paper.sharedMaterial = paintMaterial;
         IsReady = true;
         IncludeChanged(0, 0, width - 1, height - 1);
@@ -172,14 +177,16 @@ public sealed partial class ImpastoPaintSurface : MonoBehaviour
         DepositInside(world, color, units, direction);
     }
 
-    internal void DepositInside(Vector3 world, Color color, float units, Vector2 direction)
+    // radius <= 0 uses Settings.DepositRadius (the original pour). Tools pass their own nozzle size.
+    internal void DepositInside(Vector3 world, Color color, float units, Vector2 direction, float radius = -1)
     {
         if (!IsReady || IsSpreading || units <= 0) return;
         using (DepositMarker.Auto())
         {
             Vector2 center = GridPoint(world);
-            float radius = BrushRadius;
-            float rx = radius / dx, ry = radius / dy;
+            if (radius <= 0) radius = BrushRadius;
+            // VisualScale is (1,1) unless the atelier sets it, so the original pour is unchanged.
+            float rx = radius / (dx * VisualScale.x), ry = radius / (dy * VisualScale.y);
             int x0 = Mathf.Max(0, Mathf.FloorToInt(center.x - rx * 1.2f));
             int x1 = Mathf.Min(width - 1, Mathf.CeilToInt(center.x + rx * 1.2f));
             int y0 = Mathf.Max(0, Mathf.FloorToInt(center.y - ry * 1.2f));

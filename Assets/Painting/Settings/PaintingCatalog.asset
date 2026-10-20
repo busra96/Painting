@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: affbac0cb1a1ae041ae2b4c807a60cbd, type: 3}
+  m_Name: PaintingCatalog
+  m_EditorClassIdentifier: Assembly-CSharp::PaintingCatalog
+  paintings:
+  - id: renkli-kule
+    title: Renkli Kule
+    artwork: {fileID: 21300000, guid: 1908ad17e4439604f9409a2f6d112367, type: 3}
+  - id: gun-batimi
+    title: "G\xFCn Bat\u0131m\u0131"
+    artwork: {fileID: 21300000, guid: ba4c104bc93511141b120a82aa74cb36, type: 3}
+  - id: deniz-kiyisi
+    title: "Deniz K\u0131y\u0131s\u0131"
+    artwork: {fileID: 21300000, guid: 0a8b3848d69370042a588b372896e199, type: 3}
+  - id: cicek-tarlasi
+    title: "\xC7i\xE7ek Tarlas\u0131"
+    artwork: {fileID: 21300000, guid: e08e870a145a2e642b6c4fb7c6b02bb2, type: 3}
+  allowFreePainting: 1
+  freePaintingTitle: SERBEST TUVAL

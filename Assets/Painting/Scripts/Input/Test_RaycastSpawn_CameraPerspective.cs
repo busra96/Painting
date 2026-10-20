@@ -17,6 +17,7 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
     public static Action OnSpawnPaintDecal;
 
     public int PaintCount { get; private set; }
+    public long ArtworkRevision { get; private set; }
     public float DepositedUnits { get; private set; }
     private ImpastoPaintSurface surface;
     private PaintAmount budget;
@@ -131,6 +132,7 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
             surface.DepositInside(point, strokeColor, granted, direction);
             DepositedUnits += granted;
             PaintCount++;
+            ArtworkRevision++;
         }
     }
 
@@ -147,6 +149,7 @@ public class Test_RaycastSpawn_CameraPerspective : MonoBehaviour
         EndStroke();
         PaintCount = Mathf.Max(0, count);
         DepositedUnits = Mathf.Max(0, units);
+        ArtworkRevision++;
         isPaintAmountDone = budget != null && budget.isFull;
     }
 }

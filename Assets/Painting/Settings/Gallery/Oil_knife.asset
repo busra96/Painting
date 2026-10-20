@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e962eaad3303da94b84cc93b46a8cda5, type: 3}
+  m_Name: Oil_knife
+  m_EditorClassIdentifier: Assembly-CSharp::PaintingGame.Atelier.KnifeToolDefinition
+  id: knife
+  displayName: Spatula
+  hint: "Boyay\u0131 istedi\u011Fin y\xF6ne, istedi\u011Fin kadar \xE7ek."
+  icon: {fileID: 21300000, guid: cebb3693a5b3c4249b5a6626c0ab1d38, type: 2}
+  cursor: {fileID: 21300000, guid: cebb3693a5b3c4249b5a6626c0ab1d38, type: 2}
+  cursorTip: {fileID: 0}
+  cursorScale: 0.65
+  cursorFollowsStroke: 1
+  size: 0.2
+  filmScale: 0.85
+  pickup: 0.92

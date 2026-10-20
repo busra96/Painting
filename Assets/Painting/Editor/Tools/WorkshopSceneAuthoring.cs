@@ -36,7 +36,7 @@ public static class WorkshopSceneAuthoring
         frame = AssetDatabase.LoadAssetAtPath<Sprite>(ArtPath + "PaintedFrame.png");
         dab = AssetDatabase.LoadAssetAtPath<Sprite>(ArtPath + "MattePaintDab.png");
         font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(
-            "Assets/GUI PRO Kit - Casual Game/ResourcesData/Fonts/LilitaOne-Regular SDF.asset");
+            "Assets/ThirdParty/GUIProKit/ResourcesData/Fonts/LilitaOne-Regular SDF.asset");
 
         UIManager manager = Object.FindFirstObjectByType<UIManager>();
         Canvas canvas = manager.GetComponent<Canvas>();

@@ -1,36 +1,38 @@
 # Assets düzeni
 
-Ana oyun `Assets/Painting`, eski denemeler `Assets/Prototypes` altındadır. Unity asset taşıma API'si kullanılmıştır; asset ve `.meta` dosyaları birlikte taşındığından sahne/prefab bağlantılarındaki GUID'ler korunmuştur.
+`Assets` kökü sahipliğe göre ayrılır. Oyun ekibinin değiştirdiği içerik `Painting`, dış paketler `Plugins` ve `ThirdParty`, eski deneyler `Archive` altındadır. Taşımalar Unity `AssetDatabase.MoveAsset` ile yapıldığı için `.meta` GUID'leri ve sahne/prefab bağlantıları korunur.
 
 ```text
 Assets/
-  Painting/
-    Art/Fonts, UI, Sprites, Legacy
+  Painting/                       # Üretim oyunu
+    Art/Fonts, UI, Sprites, Targets, Atelier, Gallery, Legacy
     Editor/Checks, Tools
-    Materials/
-    Prefabs/
-    Resources/Shaders/
+    Materials
+    Prefabs
+    Resources/Shaders
     Scenes/Painting.unity
-    Scripts/Painting, Input, UI, Scoring, Settings, Compatibility
-    Settings/Settings.asset
-    Shaders/
-  Prototypes/
-    Legacy/
-    Legacy2D/
-    MeshGeneration/
-    Painting3D/
-  Plugins/
-  TextMesh Pro/
-  GUI PRO Kit - Casual Game/
+    Scenes/AtelierShop.unity
+    Scenes/GalleryAtelier.unity
+    Scripts/Painting, Atelier, Gallery, Input, UI, Scoring, Settings, Compatibility
+    Settings
+    Shaders
+  Plugins/                        # Unity'nin özel Plugins derleme alanı
+    CW/PaintCore, PaintIn2D, PaintIn3D
+    Demigiant/DOTween
+  ThirdParty/                     # Kod sahipliği bizde olmayan görsel/UI paketleri
+    GUIProKit
+    TextMeshPro
+  Archive/Prototypes/             # Build'e girmeyen eski araştırmalar
+    Legacy, Legacy2D, MeshGeneration, Painting3D
+  _Recovery/                      # Yerel Unity kurtarma kopyası; gitignore'da
 ```
 
-- Oynanabilir sahne: `Assets/Painting/Scenes/Painting.unity`. Build Settings bu sahneyi kullanır. UI nesneleri sahnedeki `Canvas/Workshop` altında düzenlenebilir.
-- Boya fiziği ve miktar ayarları: `Assets/Painting/Settings/Settings.asset`.
-- Boya simülasyonu ve geri alma: `Assets/Painting/Scripts/Painting`.
-- Kontroller ve spatula sürüklemesi: `Assets/Painting/Scripts/Input`.
-- Atölye görselleri: `Assets/Painting/Art/UI`; fontlar: `Art/Fonts`.
-- `Scripts/Compatibility`, mevcut prefabların referans verdiği eski decal bileşenlerini içerir.
-- `Resources/Shaders/ImpastoReadback.shader`, pigmentin beyaz zemin üzerinde puanlanabilmesi için çalışma anında yüklenir. Resources anahtarı `Shaders/ImpastoReadback` olarak kalmalıdır.
-- Eski deney sahneleri ve örnekleri Prototypes altında saklanır. Paketlerin kurulum konumları ve yerel `_Recovery` yedekleri korunmuştur.
+- Hedef görsele benzetme sahnesi `Assets/Painting/Scenes/Painting.unity`; önceki mağaza prototipi `AtelierShop.unity`; güncel sergi/galeri oyunu `GalleryAtelier.unity` konumundadır. Üçü build listesinde bulunur; ilk sahne korunmuştur.
+- Oyun kodu, düzenlenebilir UI ve üretim sanat içeriği yalnızca `Assets/Painting` altında tutulur.
+- PaintCore, Paint in 2D/3D ve DOTween, Unity'nin `Plugins` derleme davranışına bağlı olduğu için `Assets/Plugins` altında kalır.
+- GUI Pro Kit ve TextMesh Pro dış paketleri `Assets/ThirdParty` altında tutulur; proje kodu bu klasörlere eklenmez.
+- `Archive/Prototypes` build'e eklenmez ve yalnızca referans amaçlı eski denemeleri içerir.
+- `Resources/Shaders/ImpastoReadback.shader` çalışma anında `Shaders/ImpastoReadback` anahtarıyla yüklenir; yolu değiştirilmemelidir.
+- `Assets/_Recovery` Unity'nin yerel kurtarma içeriğidir ve git tarafından izlenmez.
 
-Editor testleri ve kurulum araçlarındaki yollar yeni konumlara güncellenmiştir. Taşıma kontrolü 2.280 asset GUID'ini ve ana sahnenin 77 bağımlılığını doğruladı; eksik script sayısı sıfırdır. Yerel kanıtlar `Logs/AssetLayout/Before.json`, `After.json` ve `Migration.log` içindedir.
+Kalıcı `AssetLayoutChecks` kontrolü kök klasör kurallarını, en az 2.300 asset GUID'inin çözümlenmesini, hedef görsel ve mağaza sahnelerindeki eksik scriptleri ve galeri kataloğunun sabit kimliklerini doğrular. Projeye ait 3D model boyama prototipi kaldırılmıştır; üçüncü taraf paketler ve eski arşivler kendi klasörlerinde saklanır.

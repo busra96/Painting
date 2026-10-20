@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ae1e5b993e3f6944b97019bd605f534, type: 3}
+  m_Name: GalleryRules
+  m_EditorClassIdentifier: Assembly-CSharp::PaintingGame.Atelier.GalleryRules
+  painting: {fileID: 11400000, guid: 6d6a3ffd34e7df84483812596cc9bb14, type: 2}
+  exhibitionSize: 15
+  exhibitionSeconds: 100
+  visitorInterval: 8
+  startingCoins: 280
+  startingCanvases: 20
+  canvasPackPrice: 35
+  canvasesPerPack: 10
+  expansionBasePrice: 160
+  decorationBasePrice: 95
+  advertisingPrice: 45
+  visitorBudget: 160
+  basePurchaseChance: 0.58
+  minimumCoverage: 0.035
+  customers:
+  - {fileID: 11400000, guid: 13993aa8badc25d4a8c53057c601e95d, type: 2}
+  - {fileID: 11400000, guid: 1c07ebe17a77cd74085c10f66bbf0bee, type: 2}
+  - {fileID: 11400000, guid: 602e8954d6e8b6a4dace94df82096075, type: 2}
+  - {fileID: 11400000, guid: 289a7f06a4ba8294585bca78f7282f5d, type: 2}
+  - {fileID: 11400000, guid: 2ec3864583899f84eb4cdf0d12d04099, type: 2}
+  - {fileID: 11400000, guid: a29883ee87520714d9484da6edec3257, type: 2}

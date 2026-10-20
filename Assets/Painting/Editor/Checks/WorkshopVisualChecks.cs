@@ -3,6 +3,7 @@ using System.IO;
 using System.Collections.Generic;
 using TMPro;
 using UnityEditor;
+using PaintingGame.Gallery;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UI;
@@ -49,6 +50,7 @@ public static class WorkshopVisualChecks
         Debug.Log("WORKSHOP AUTHORED CHECK: Layout, artwork and control references exist in Edit mode.");
         EditorApplication.playModeStateChanged -= OnStateChanged;
         EditorApplication.playModeStateChanged += OnStateChanged;
+        PaintingSession.Select(""); // Checks always use the scene's authored target.
         EditorApplication.isPlaying = true;
     }
 

@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using PaintIn2D;
 using UnityEditor;
+using PaintingGame.Gallery;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using Object = UnityEngine.Object;
@@ -42,6 +43,7 @@ public static class PaintingMechanicChecks
         EditorSceneManager.OpenScene(ScenePath);
         EditorApplication.playModeStateChanged -= StateChanged;
         EditorApplication.playModeStateChanged += StateChanged;
+        PaintingSession.Select(""); // Checks always use the scene's authored target.
         EditorApplication.isPlaying = true;
     }
 
@@ -168,7 +170,7 @@ public static class PaintingMechanicChecks
             surface.Deposit(new Vector3(-2 + i * 0.2f, 4, 0), green, 0.25f, Vector2.zero);
         surface.BeginSpread(7.5f); surface.SpreadTo(-5.5f); surface.FinishSpread();
         Camera camera = Camera.main;
-        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Canvas canvas = WorkshopCanvas();
         bool enabled = canvas.enabled, ortho = camera.orthographic;
         float size = camera.orthographicSize, aspect = camera.aspect;
         Vector3 position = camera.transform.position;
@@ -612,11 +614,18 @@ public static class PaintingMechanicChecks
             "Continuous pouring spends fractional supply");
     }
 
+    // The gallery adds an overlay Canvas; captures must hide the Workshop Canvas specifically.
+    private static Canvas WorkshopCanvas()
+    {
+        var view = Object.FindFirstObjectByType<WorkshopVisualController>();
+        return view != null ? view.canvas : Object.FindFirstObjectByType<Canvas>();
+    }
+
     private static void Capture(string name, bool verify = true)
     {
         surface.Flush();
         var camera = Camera.main;
-        var canvas = Object.FindFirstObjectByType<Canvas>();
+        var canvas = WorkshopCanvas();
         bool canvasEnabled = canvas != null && canvas.enabled;
         if (canvas != null) canvas.enabled = false;
         var position = camera.transform.position;

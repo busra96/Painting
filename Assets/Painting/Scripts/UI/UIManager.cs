@@ -1,5 +1,6 @@
 using System.Collections;
 using TMPro;
+using PaintingGame.Gallery;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -22,6 +23,16 @@ public class UIManager : MonoBehaviour
     private GridDataComparer comparer;
     private TMP_Text buttonLabel;
     private TMP_Text statusLabel;
+
+    // Gallery hooks: saving is allowed while painting and on the result screen, never mid-spread.
+    public bool IsBusy => phase == Phase.Spreading || phase == Phase.Evaluating;
+    public bool IsShowingResult => phase == Phase.Result;
+    public bool HasPaint => RaycastAndSpawn != null && RaycastAndSpawn.PaintCount > 0;
+    public bool CanSaveArtwork => !IsBusy && HasPaint;
+    public bool HasResultScore { get; private set; }
+    public float ResultScore { get; private set; }
+    // Changes whenever the visible painting may have changed, so the saver can re-enable itself.
+    public long ArtworkVersion => (RaycastAndSpawn != null ? RaycastAndSpawn.ArtworkRevision : 0L) * 4 + (int)phase;
 
     private void Start()
     {
@@ -138,12 +149,22 @@ public class UIManager : MonoBehaviour
         yield return new WaitForFixedUpdate();
         if (ImpastoPaintSurface.Active != null) ImpastoPaintSurface.Active.FinishSpread();
         if (Spatula != null) Spatula.SetActive(false);
-        if (comparer != null) comparer.Test();
+        if (PaintingSession.ActiveIsFreePainting) ShowFreeResult();
+        else if (comparer != null) comparer.Test();
         else ShowComparisonFailure();
+    }
+
+    private void ShowFreeResult()
+    {
+        HasResultScore = false;
+        if (statusLabel != null) statusLabel.text = "TABLON HAZIR";
+        ShowRetry();
     }
 
     private void ShowResult(float score)
     {
+        HasResultScore = true;
+        ResultScore = score;
         if (statusLabel != null) statusLabel.text = "ESLESME  %" + Mathf.RoundToInt(score);
         ShowRetry();
     }

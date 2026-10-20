@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ef1827cbe0b4c7945bd0e1f499815369, type: 3}
+  m_Name: ArtisanUITheme
+  m_EditorClassIdentifier: Assembly-CSharp::PaintingGame.Atelier.GalleryUITheme
+  paper: {fileID: 21300000, guid: 45425dfc8b05b154aa3a67af86374cd1, type: 2}
+  primary: {fileID: 21300000, guid: 4a2213bcfbb25ca40af5ee0bde54e81a, type: 2}
+  secondary: {fileID: 21300000, guid: f1641db39a1d6294fa254e7334867c00, type: 2}
+  card: {fileID: 21300000, guid: 186d704f3c67405488c7c60ead183f26, type: 2}
+  rail: {fileID: 21300000, guid: 1ae2c588454b45b4faf6418a40ece0ef, type: 2}
+  monitor: {fileID: 21300000, guid: 89e0bca32cffeee4385708d54f9efc32, type: 2}
+  label: {fileID: 21300000, guid: 183d9ec004cf0d54e86ad823e433cbb9, type: 2}
+  frame: {fileID: 21300000, guid: 25fd2d113d96df840ae428e1479ec4fe, type: 2}
+  readableFont: {fileID: 11400000, guid: 2751a4022429c504d9c5d4622cbe526c, type: 2}
+  ink: {r: 0.19, g: 0.14, b: 0.09, a: 1}
+  ivory: {r: 0.98, g: 0.94, b: 0.82, a: 1}
