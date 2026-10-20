@@ -18,7 +18,8 @@ namespace PaintingGame.Atelier
         {
             Direction = Vector2.zero;
             bladeWidth = WorkingSize;
-            load = Surface.BeginKnife(load, bladeWidth);
+            load = Surface.BeginKnife(load, bladeWidth,new ImpastoPaintSurface.KnifeProfile
+            {length=definition.bladeLength,taper=definition.tipTaper,asymmetry=definition.asymmetry,curve=definition.edgeCurve});
             anchor = point;
         }
 

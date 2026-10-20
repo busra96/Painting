@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace PaintingGame.Atelier
 {
-    public enum PaintToolKind { Brush, Knife, Press, Pour }
+    public enum PaintToolKind { Brush, Knife, Press, Pour, Pencil }
 
     // Base for every hand tool. Each definition is a data asset that creates its own runtime strategy, so a new
     // brush or knife is added by creating an asset and putting it in the AtelierConfig list, without code changes.

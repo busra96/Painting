@@ -14,9 +14,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PaintingGame.Atelier.AtelierConfig
   tools:
   - {fileID: 11400000, guid: 5e7ce97994c94f8418aa3598929ae6f5, type: 2}
+  - {fileID: 11400000, guid: 1de297bcbf7518c4ea3abda3c741e80a, type: 2}
   - {fileID: 11400000, guid: a7b14ec38d83c444ca3d30fabeac6204, type: 2}
+  - {fileID: 11400000, guid: 336a5a2add9e73242b06be91972320dc, type: 2}
+  - {fileID: 11400000, guid: 62606e76af2e60c428ccaec32c0e9caf, type: 2}
   - {fileID: 11400000, guid: b9c180f77bf0fa64da7bc0d279c7ad38, type: 2}
-  - {fileID: 11400000, guid: 991a78b1f50404046907df8410734dca, type: 2}
+  - {fileID: 11400000, guid: 18c711b05c1cd1e4383fb2276096c292, type: 2}
+  - {fileID: 11400000, guid: 8531ba18b3c9dd94bbb112bb612575ec, type: 2}
+  - {fileID: 11400000, guid: 11a44975011f6aa4699871d62c618d96, type: 2}
+  - {fileID: 11400000, guid: 30c36356f7607e54383f581ad523e069, type: 2}
   - {fileID: 11400000, guid: 2540f971480e7af48adc3da31e0b0235, type: 2}
   colors:
   - {fileID: 11400000, guid: 4708663f05e62f84b80feb23231db10e, type: 2}

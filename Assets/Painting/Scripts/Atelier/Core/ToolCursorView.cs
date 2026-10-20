@@ -37,7 +37,7 @@ namespace PaintingGame.Atelier
             if (tip != null) { tip.sprite = tool.cursorTip; tip.enabled = tool.cursorTip != null; }
             follows = tool.cursorFollowsStroke;
             pressContact = tool is PressToolDefinition;
-            contactLocked = tool is KnifeToolDefinition || pressContact;
+            contactLocked = tool is KnifeToolDefinition || pressContact || tool is PencilToolDefinition;
             float worldSize = tool.WorldSize(surface) * 2 * tool.cursorScale * sizeMultiplier;
             float spriteSize = tool.cursor != null ? Mathf.Max(0.0001f, tool.cursor.bounds.size.x) : 1;
             // Parent x scale is 1, so local x size equals visual canvas units.

@@ -2,12 +2,12 @@
 
 Yeni oyun sahnesi: `Assets/Painting/Scenes/GalleryAtelier.unity`. `Painting.unity` hedef görsele benzetme modunu, `AtelierShop.unity` önceki prototipi korur. Galeri oyunu için **GalleryAtelier** sahnesini açıp Play'e bas.
 
-Kabarık yağlı boya, geliştirilmiş spatula/baskı ve yeni ahşap–pirinç UI düzeni için [GalleryOilRevision.md](GalleryOilRevision.md). **ALET AYARI** düğmesi, alet genişliğini ve baskı kuvvetini açar.
+Güncel alet seti: [ReferenceArtistTools.md](ReferenceArtistTools.md). Dört fırça, eskiz kalemi ve beş palet bıçağı vardır; baskı aracı kaldırıldı. **ALET AYARI** düğmesi, genişlik ve kuvveti açar. Yağlı boya malzemesi için [GalleryOilRevision.md](GalleryOilRevision.md).
 
 ## Oyun döngüsü
 
 - **Galeri:** atölyeye ve bilgisayara odanın içindeki etiketlerden veya alt menüden git.
-- **Boya:** geniş/dar fırça, herhangi bir yöne çekilen spatula, yerel baskı ve tüp. Tuvale ilk dokunma stoktan tek bir tuval ayırır. Her rengin kendi tüpü vardır; boş tüp boya üretemez. Geri al son hareketin boyasını aynı tüpe iade eder. Temizlemek tüpleri doldurmaz.
+- **Boya:** dört fırça tipi, eskiz kalemi, beş palet bıçağı ve tüp. Tuvale ilk dokunma stoktan tek bir tuval ayırır. Her rengin kendi tüpü vardır; boş tüp boya üretemez. Kalem tüp tüketmeden grafit eskizi yapar. Geri al son hareketin boyasını aynı tüpe iade eder. Temizlemek tüpleri doldurmaz.
 - **Eseri bitir:** aydınlatılmış gerçek tuval görüntüsü ve fiyat depoya kaydedilir. Bu adım para kazandırmaz.
 - **Sergi:** varsayılan 15 yeni eserle açılır. 100 saniyelik sergi boyunca farklı zevk ve bütçedeki ziyaretçiler gelir. Satın alan ziyaretçi tablonun bedelini öder. Sergi sonunda satılmayanlar ayrı depoya döner, sonraki serginin yeni eser koşuluna sayılmaz; kaldırılmaları para kazandırmaz.
 - **Bilgisayar / Mağaza:** tuval paketi, ayrı boya tüpleri, galeri genişletmesi, dekorasyon ve ışık. Genişletme ziyaret aralığını, dekorasyon satın alma olasılığını etkiler.
@@ -26,7 +26,7 @@ Tüm paneller `Gallery Canvas / Safe Area / Portrait Composition 1080x1920` alt�
 - `GalleryStore`: Unity sahnesinden bağımsız ekonomi, stok, tüp envanteri ve sergi durumu. Para değişiklikleri atomik JSON kaydından sonra kesinleşir; başarısız yazma işlemi geri alınır. Ziyaret kararları, kayıttan çıkıp girerek yeniden zar atılmaması için kararlı girdilerden hesaplanır.
 - `GalleryGameController`: bileşenleri bağlar, sayfaları ve kayıt akışını yönetir. `Update` kullanmaz. Sergi saati yalnızca sergi açıkken saniyelik coroutine ile çalışır. UI olaylarla yenilenir; kart dokuları sadece eser durumu değişince yüklenir ve görünmeyenler serbest bırakılır.
 - `PaintToolController`: strateji nesnelerine Begin/Drag/End iletir. Yeni sahnede giriş EventSystem'den gelir, eski prototipteki ekran polling'i kapalıdır. Boyama coroutine'i yalnızca parmak basılıyken çalışır.
-- Fırça, spatula ve baskı sadece temas bölgesindeki hücreleri işler. 320 piksel genişliğinde, fiziksel tuval oranında yaklaşık 88 bin hücre; değişen tile'lar yüklenir. Undo kopyala-yaz günlüğüyle sınırlıdır.
+- Fırça, kalem ve palet bıçakları sadece temas bölgesindeki hücreleri işler. 320 piksel genişliğinde, fiziksel tuval oranında yaklaşık 88 bin hücre; değişen tile'lar yüklenir. Undo kopyala-yaz günlüğüyle sınırlıdır.
 - Fırçanın kıl gürültüsü hücre başına yeniden hesaplanmaz; 129 örnekten enterpole edilir. Ayak izi polinomlarla hesaplanır, iç döngüde genel üs alma kullanılmaz. Fırça kaldırılınca taşınan boya, uçta tek bir sivri boncuk yerine fırça genişliğine yayılır.
 - Her fırça örneğinde diske yazılmaz. Taslak 15 saniye boşlukta, sayfa değişiminde, uygulama duraklatılınca veya kapanınca kaydedilir. Boya alanı ve tüpler aynı kayıt nesline aittir. Ani süreç sonlandırmasında son otomatik kayıt sonrası vuruşlar kaybolabilir.
 - Oyuncu boyarken gelen satışlar, yarım vuruşun tüp tüketimini eski bir taslakla birlikte kaydetmez. Arka plan ekonomisi son fiziksel taslağa ait tüp değerlerini korur. JSON yedeğinin işaret ettiği önceki boya dosyası da tutulur; ana kayıt bozulduğunda yedek yalnızca metaveriye dönmez.

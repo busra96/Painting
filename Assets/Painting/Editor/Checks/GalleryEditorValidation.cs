@@ -43,6 +43,7 @@ public static class GalleryEditorValidation
                 if (command == "configure") GalleryArtDirectionAuthoring.ApplyContactCursorsInOpenScene();
                 else if (command == "checks") GalleryGameChecks.RunBatch();
                 else if (command == "tool-checks") AtelierToolChecks.RunBatch();
+                else if (command == "reference-tools") GalleryReferenceToolsAuthoring.Apply();
                 else if (command == "refresh") AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
                 else throw new InvalidOperationException("Unknown validation request.");
                 state.result = command + " started";

@@ -2,6 +2,10 @@ using UnityEngine;
 
 public sealed partial class ImpastoPaintSurface
 {
+    public struct KnifeProfile
+    {
+        public float length,taper,asymmetry,curve;
+    }
     // A reusable contact workspace, not a hidden paint reservoir. Each contact gathers then returns
     // its paint within the same operation, so all persistent paint always belongs to the canvas.
     public sealed class KnifeLoad
@@ -17,6 +21,7 @@ public sealed partial class ImpastoPaintSurface
         internal bool hasAxis;
         internal float untilNextContact;
         internal float contactBed;
+        internal KnifeProfile profile;
         public float Volume => 0;
         public float ContactVolume { get; internal set; }
         public Vector2 Direction => travel;
@@ -33,12 +38,17 @@ public sealed partial class ImpastoPaintSurface
         }
     }
 
-    public KnifeLoad BeginKnife(KnifeLoad load, float bladeWidth)
+    public KnifeLoad BeginKnife(KnifeLoad load, float bladeWidth,KnifeProfile profile=default)
     {
         if (load == null) load = new KnifeLoad();
-        float reach = bladeWidth * .8f + CellSize * 3;
-        int columns = Mathf.Min(width, Mathf.CeilToInt(reach * 2 / VDx) + 3);
-        int rows = Mathf.Min(height, Mathf.CeilToInt(reach * 2 / VDy) + 3);
+        if(profile.length<=0)profile=new KnifeProfile{length=.28f,curve=.1f};
+        load.profile=profile;
+        // Bound the rotated pad by its diagonal instead of allocating a large surrounding square.
+        float padWidth=bladeWidth*(1+Mathf.Abs(profile.asymmetry));
+        float padDepth=bladeWidth*(profile.length+profile.curve);
+        float span=Mathf.Sqrt(padWidth*padWidth+padDepth*padDepth)+CellSize*6;
+        int columns = Mathf.Min(width, Mathf.CeilToInt(span / VDx) + 3);
+        int rows = Mathf.Min(height, Mathf.CeilToInt(span / VDy) + 3);
         load.Prepare(columns * rows);
         return load;
     }
@@ -76,12 +86,14 @@ public sealed partial class ImpastoPaintSurface
         float filmScale, float pickup, float step, KnifeLoad load)
     {
         float vdx = VDx, vdy = VDy, cell = CellSize;
-        float half = Mathf.Max(cell, bladeWidth * .5f), depth = Mathf.Max(cell * 3, bladeWidth * .28f);
+        var profile=load.profile;
+        float half = Mathf.Max(cell, bladeWidth * .5f), depth = Mathf.Max(cell * 3, bladeWidth * profile.length);
         // Enclose the oriented contact pad, rather than scanning a square around the whole blade.
-        float halfDepth=(depth+bladeWidth*.1f)*.5f;
+        float halfDepth=(depth+bladeWidth*profile.curve)*.5f;
         Vector2 padCenter=center-new Vector2(along.x*halfDepth/vdx,along.y*halfDepth/vdy);
-        float rx=(Mathf.Abs(axis.x)*half+Mathf.Abs(along.x)*halfDepth+cell*3)/vdx;
-        float ry=(Mathf.Abs(axis.y)*half+Mathf.Abs(along.y)*halfDepth+cell*3)/vdy;
+        float shoulderReach=half*(1+Mathf.Abs(profile.asymmetry));
+        float rx=(Mathf.Abs(axis.x)*shoulderReach+Mathf.Abs(along.x)*halfDepth+cell*3)/vdx;
+        float ry=(Mathf.Abs(axis.y)*shoulderReach+Mathf.Abs(along.y)*halfDepth+cell*3)/vdy;
         int x0 = Mathf.Max(0, Mathf.FloorToInt(padCenter.x-rx));
         int x1 = Mathf.Min(width - 1, Mathf.CeilToInt(padCenter.x+rx));
         int y0 = Mathf.Max(0, Mathf.FloorToInt(padCenter.y-ry));
@@ -109,9 +121,14 @@ public sealed partial class ImpastoPaintSurface
             Vector2 d = new Vector2((x - center.x) * vdx, (y - center.y) * vdy);
             float across = Vector2.Dot(d, axis), u = across / half;
             if (Mathf.Abs(u) >= 1) continue;
-            float bow = bladeWidth * .10f * u * u;
+            float bow = bladeWidth * profile.curve * u * u;
             float longitudinal = Vector2.Dot(d, along), behind = -(longitudinal + bow);
             if (behind < 0 || behind >= depth) continue;
+            float t=behind/depth;
+            float bladeShape=Mathf.Lerp(1,Mathf.Max(.08f,1-Mathf.Abs(t*2-1)),profile.taper);
+            float shift=profile.asymmetry*(.5f-t)*half;
+            u=(across-shift)/(half*bladeShape);
+            if(Mathf.Abs(u)>=1)continue;
             float shoulder = Mathf.Clamp01((1 - u * u * u * u) * 3);
             float contact = shoulder * Mathf.SmoothStep(0, 1, (depth - behind) / (depth * .4f));
             float texturedBed=bed*(1+(contactTexture[i]-.5f)*Variation*.25f);
@@ -122,7 +139,7 @@ public sealed partial class ImpastoPaintSurface
             TakeFromCell(i, fraction, out float taken, out Vector3 mass, out float coat, out Vector3 coatMass);
             float targetAcross = Mathf.Clamp(across * lateral, -half * .98f, half * .98f);
             float targetU = targetAcross / half;
-            float front = -bladeWidth * .10f * targetU * targetU + cell * .6f;
+            float front = -bladeWidth * profile.curve * targetU * targetU + cell * .6f;
             float targetAlong = Mathf.Min(front, longitudinal + depth * .72f);
             load.transfers[count++] = new KnifeLoad.Transfer
             {
@@ -152,7 +169,7 @@ public sealed partial class ImpastoPaintSurface
             float u = (k + .5f) / samples * 2 - 1, offset = u * half;
             for (int n = 0; n < 4; n++)
             {
-                float behind = -bladeWidth * .10f * u * u - cell * (n + .5f);
+                float behind = -bladeWidth * profile.curve * u * u - cell * (n + .5f);
                 int x = Mathf.RoundToInt(center.x + (axis.x * offset + along.x * behind) / vdx);
                 int y = Mathf.RoundToInt(center.y + (axis.y * offset + along.y * behind) / vdy);
                 if (x < 0 || y < 0 || x >= width - 1 || y >= height - 1) continue;

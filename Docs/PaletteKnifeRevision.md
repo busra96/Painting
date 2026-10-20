@@ -2,6 +2,8 @@
 
 Sahne: `Assets/Painting/Scenes/GalleryAtelier.unity`.
 
+Güncel alet setinde baskı kaldırıldı; aşağıdaki baskı bölümü önceki düzeltmenin tarihçesidir. Yeni fırça, kalem ve bıçaklar için [ReferenceArtistTools.md](ReferenceArtistTools.md).
+
 ## Spatulayı kaldırırken parça oluşması
 
 Önceki uygulama, bıçakta tuttuğu boyayı `EndKnife` içinde kısa bir ayak izine döküyordu. Hacim korunsa bile bu, fare bırakılınca yeni bir hilal/parça oluşturuyordu. İnce kalan film de özellikle kahverengide gri görünüyordu.

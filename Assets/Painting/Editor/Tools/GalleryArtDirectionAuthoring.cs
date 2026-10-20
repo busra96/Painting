@@ -33,6 +33,8 @@ public static class GalleryArtDirectionAuthoring
             var source=game.rules.painting.tools[i];string path=Data+"Oil_"+source.id+".asset";
             var copy=AssetDatabase.LoadAssetAtPath<PaintToolDefinition>(path);
             if(copy==null){copy=Object.Instantiate(source);AssetDatabase.CreateAsset(copy,path);}
+            if(source.icon!=null && source.icon.name.StartsWith("ReferenceTool_"))
+            {game.rules.painting.tools[i]=copy;continue;}
             if(copy is BrushToolDefinition brush)
             {brush.size=i==0?.055f:.018f;brush.bristleContrast=.35f;brush.bristles=i==0?12:6;brush.smudge=.2f;brush.release=.5f;brush.spacing=.10f;}
             if(copy is PourToolDefinition pour){pour.size=.032f;pour.unitsPerSecond=7;}
@@ -128,6 +130,7 @@ public static class GalleryArtDirectionAuthoring
         // kernel; the old long palette-knife crop included an opaque background and hid the paint.
         foreach(var tool in game.rules.painting.tools)
         {
+            if(tool.icon!=null && tool.icon.name.StartsWith("ReferenceTool_"))continue;
             if(tool is PressToolDefinition)
             {
                 tool.cursor=ContactSprite("PressContactBody","Cursor_Press",new Vector2(.5f,.5f));

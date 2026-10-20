@@ -34,3 +34,9 @@ Spatula revizyonundan sonra GalleryGameChecks 152, AtelierToolChecks 8, Painting
 Kullanıcının uzun kahverengi şerit örneğiyle yeni bir görsel regresyon eklendi. Kaldırma öncesi/sonrası render'da **0 piksel değişiyor**. Üç farklı noktada yeni baskı temasının mouse konumunda olduğu, çap ve pivotun fiziksel alanla eşleştiği, bırakınca eski konumda görsel kalmadığı doğrulandı.
 
 Bu düzeltmede açık Unity Editor içinde GalleryGameChecks **163**, AtelierToolChecks **8** yeniden geçti; toplam **171**. Test kayıtları oyuncu profilinden ayrıdır. Güncel model ve ölçümler [PaletteKnifeRevision.md](PaletteKnifeRevision.md) içinde.
+
+## Referans fırçalar ve palet bıçakları
+
+Dört fırça, eskiz kalemi, beş palet bıçağı ve mevcut tüpten oluşan yeni set doğrulandı; baskı aktif galeriden kaldırıldı. GalleryGameChecks **224**, AtelierToolChecks **8**, PaintingMechanicChecks **76**, PaintHistoryChecks **19**: bu revizyonda **327 kontrol** geçti. Son atlas/pivot ayarından sonra GalleryGameChecks tekrar 224/224 geçti (`Logs/GalleryGameChecks-ReferenceRelease.log`).
+
+Kontroller gerçek pointer ile yatay alet çubuğunu kaydırma ve son aleti seçme, farklı fırça genişlikleri, tüp tüketimi ve undo, boş tüple kalem kullanma, farklı bıçak temas şekilleri ve boya korunumu içerir. Mobil oranlarda alınan render'lar `Docs/Previews/GalleryAtelier-Reference*.png` altında. Fiziksel Android cihaz testi yapılmadı. Aletler ve düzenlenebilir sahne nesneleri [ReferenceArtistTools.md](ReferenceArtistTools.md) içinde açıklanır.

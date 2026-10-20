@@ -198,7 +198,7 @@ public static class GalleryGameChecks
         double savedVolume=surface.MeasureVolume();tools.ClearCanvas();
         Check(surface.ReadArtistDraft(store.DraftPath) && Math.Abs(surface.MeasureVolume()-savedVolume)<savedVolume*.002,"Reload restores the actual pigment field without losing the painting");
         tools.History.Clear();
-        Stroke(game,0,new[]{new Vector2(-2.3f,-1.6f),new Vector2(-2.1f,-1.3f)},1);
+        Stroke(game,0,new[]{new Vector2(-2.3f,-1.6f),new Vector2(-2.1f,-1.3f)},"brush-thin");
         int walletBefore=game.Store.Data.coins;float other=tools.Inventory.Level(game.rules.painting.colors[1]);
         game.Act(GalleryAction.Tube,0);
         Check(game.Store.Data.coins==walletBefore-game.rules.painting.colors[0].price && tools.Inventory.Fraction(game.rules.painting.colors[0])>.999f &&
@@ -223,19 +223,8 @@ public static class GalleryGameChecks
     private static void ValidateSculpting(GalleryGameController game)
     {
         var s=game.tools.surface;var tools=game.tools;Vector3 c=s.transform.position;
-        tools.ClearCanvas();s.Deposit(c,Color.red,6,Vector2.zero);
-        float peak=s.SampleThickness(c);float area=s.CoveredArea();double volume=s.MeasureVolume();
-        for(int i=0;i<24;i++)s.Press(c,.7f,.18f,.18f,2);
-        Check(s.SampleThickness(c)<peak*.85f && s.SampleThickness(c)>peak*.02f && s.CoveredArea()>area*1.1f,
-            "Press lowers a mound and expands contact without digging a hollow ring");
-        Check(Math.Abs(s.MeasureVolume()-volume)<volume*.003,"Sculpting press conserves the mound's full volume");
-        tools.SelectTool(game.rules.painting.tools[3]);tools.SetControls(1,.15f);
-        tools.ClearCanvas();s.Deposit(c,Color.red,6,Vector2.zero);tools.BeginGesture(c);
-        for(int i=0;i<10;i++)tools.ContinueGesture(c,.05f);tools.EndStroke();float gentle=s.SampleThickness(c);
-        tools.ClearCanvas();s.Deposit(c,Color.red,6,Vector2.zero);tools.SetControls(1,.95f);tools.BeginGesture(c);
-        for(int i=0;i<10;i++)tools.ContinueGesture(c,.05f);tools.EndStroke();
-        Check(s.SampleThickness(c)<gentle*.95f,"The pressure control changes physical flattening strength");
-        tools.SelectTool(game.rules.painting.tools[4]);tools.ClearCanvas();tools.SetControls(.5f,.75f);tools.BeginGesture(c);tools.EndStroke();
+        ValidateReferenceToolSet(game);
+        tools.SelectTool(FindTool<PourToolDefinition>(game));tools.ClearCanvas();tools.SetControls(.5f,.75f);tools.BeginGesture(c);tools.EndStroke();
         float narrow=s.SampleThickness(c);double smallVolume=s.MeasureVolume();
         tools.ClearCanvas();tools.SetControls(1.4f,.75f);tools.BeginGesture(c);tools.EndStroke();
         Check(narrow>s.SampleThickness(c)*1.5f && Math.Abs(s.MeasureVolume()-smallVolume)<smallVolume*.005f,
@@ -263,19 +252,99 @@ public static class GalleryGameChecks
             "Slow and fast palette-knife pulls preserve volume and produce comparable coverage");
         ValidateKnife(game);
         tools.ClearCanvas();
-        // Visual regression sample: rounded oil heaps, a short blade pull, and a pressed heap.
+        // Visual regression sample: oil heaps and a short palette-knife pull.
         s.Deposit(c+new Vector3(-2,1.5f,0),Color.red,4,Vector2.zero);
         s.Deposit(c+new Vector3(0,1.5f,0),Color.yellow,7,Vector2.zero);
         s.Deposit(c+new Vector3(2,1.5f,0),Color.blue,3,Vector2.zero);
         var knife=s.BeginKnife(null,1.2f);Vector3 from=c+new Vector3(0,1.5f,0);
         for(int i=1;i<=50;i++){Vector3 to=c+new Vector3(0,1.5f-i*.05f,0);s.KnifeSweep(from,to,1.2f,.7f,.9f,knife);from=to;}
         s.EndKnife(knife,1.2f);
-        for(int i=0;i<15;i++)s.Press(c+new Vector3(2,1.5f,0),.7f,.16f,.18f,2);
         s.Flush();if(tools.cursor!=null)tools.cursor.HideNow();
         Preview(game,"Oil-Sculpting",1,720,1280);
         var image=AtelierArtworkCapture.Capture(tools.mainCamera,game.paper,896);
         File.WriteAllBytes("Logs/GalleryPreview/Oil-Relief.png",image.EncodeToPNG());Object.DestroyImmediate(image);
         tools.ClearCanvas();
+    }
+    private static T FindTool<T>(GalleryGameController game)where T:PaintToolDefinition
+    {
+        foreach(var tool in game.rules.painting.tools)if(tool is T match)return match;
+        throw new Exception("Missing tool: "+typeof(T).Name);
+    }
+    private static void ValidateReferenceToolSet(GalleryGameController game)
+    {
+        var tools=game.tools;var s=tools.surface;var config=game.rules.painting;Vector3 c=s.transform.position;
+        var brushes=new System.Collections.Generic.List<BrushToolDefinition>();
+        var knives=new System.Collections.Generic.List<KnifeToolDefinition>();
+        var ids=new System.Collections.Generic.HashSet<string>();int pencilCount=0,pourCount=0;
+        foreach(var tool in config.tools)
+        {
+            Check(ids.Add(tool.id) && tool.icon!=null && tool.cursor!=null,"Stable ID and authored sprites: "+tool.displayName);
+            Check(tool.Kind!=PaintToolKind.Press,"Press is absent from the playable artist tool set: "+tool.id);
+            if(tool is BrushToolDefinition brush)brushes.Add(brush);
+            if(tool is KnifeToolDefinition knife)knives.Add(knife);
+            if(tool is PencilToolDefinition)pencilCount++;
+            if(tool is PourToolDefinition)pourCount++;
+        }
+        Check(brushes.Count==4 && knives.Count==5 && pencilCount==1 && pourCount==1,"Reference set has four brushes, five palette knives, pencil and retained paint tube");
+        int buttonCount=0;
+        foreach(var b in game.buttons)if(b.action==GalleryAction.Tool)
+        {
+            buttonCount++;Check(b.index>=0 && b.index<config.tools.Count && b.transform.IsChildOf(game.layout.canvas.transform),"Tool button is editable under scene Canvas: "+b.name);
+            Check(!b.name.Contains("Bask"),"Old press button has been removed");
+        }
+        Check(buttonCount==config.tools.Count,"Every artist tool has exactly one scene button");
+        var rack=game.pages[1].transform.Find("Artist Tool Rack").GetComponent<ScrollRect>();
+        Check(rack.horizontal && !rack.vertical && rack.content.childCount==config.tools.Count && rack.content.rect.width>rack.viewport.rect.width,
+            "Mobile artist rack scrolls horizontally without shrinking tap targets");
+        Canvas.ForceUpdateCanvases();
+        Vector2 rackScreen=RectTransformUtility.WorldToScreenPoint(null,rack.viewport.TransformPoint(rack.viewport.rect.center));
+        var drag=new PointerEventData(EventSystem.current){position=rackScreen,button=PointerEventData.InputButton.Left};
+        rack.OnBeginDrag(drag);drag.position=rackScreen-Vector2.right*rack.viewport.rect.width*game.layout.canvas.scaleFactor*.7f;
+        rack.OnDrag(drag);rack.OnEndDrag(drag);
+        Check(rack.horizontalNormalizedPosition>.2f,"A real pointer drag reveals more artist tools");
+        rack.StopMovement();rack.horizontalNormalizedPosition=1;Canvas.ForceUpdateCanvases();
+        GalleryButton tubeButton=null;foreach(var b in game.buttons)if(b.action==GalleryAction.Tool && config.tools[b.index] is PourToolDefinition)tubeButton=b;
+        var tap=new PointerEventData(EventSystem.current){position=RectTransformUtility.WorldToScreenPoint(null,tubeButton.transform.position),button=PointerEventData.InputButton.Left};
+        var hits=new System.Collections.Generic.List<RaycastResult>();EventSystem.current.RaycastAll(tap,hits);
+        Check(hits.Count>0 && hits[0].gameObject.GetComponentInParent<GalleryButton>()==tubeButton,"The last tool receives pointer hits inside the scrolled viewport");
+        ExecuteEvents.Execute(tubeButton.gameObject,tap,ExecuteEvents.pointerClickHandler);
+        Check(tools.CurrentTool is PourToolDefinition,"A pointer click selects the last tool after scrolling");
+        rack.horizontalNormalizedPosition=0;
+        float[] area=new float[4];var color=config.colors[0];
+        for(int n=0;n<brushes.Count;n++)
+        {
+            tools.ClearCanvas();tools.Inventory.Refill(color);tools.SelectColor(color);tools.SelectTool(brushes[n]);
+            float before=tools.Inventory.Level(color);tools.BeginGesture(c+Vector3.left);
+            for(int i=1;i<=30;i++)tools.ContinueGesture(c+Vector3.left+Vector3.right*(i/15f),.016f);
+            tools.EndStroke();area[n]=s.CoveredArea();
+            Check(area[n]>0 && tools.Inventory.Level(color)<before,"Reference brush paints and consumes its tube: "+brushes[n].displayName);
+            Check(tools.Undo() && s.MeasureVolume()<.000001 && Mathf.Abs(tools.Inventory.Level(color)-before)<.0001f,"Brush undo restores paint and tube: "+brushes[n].displayName);
+        }
+        Check(area[0]>area[1] && area[1]>area[2] && area[2]>area[3],"Four brush tips produce successively narrower actual painted areas");
+        tools.ClearCanvas();tools.Inventory.Spend(color,100000);tools.SelectTool(FindTool<PencilToolDefinition>(game));
+        tools.BeginGesture(c+Vector3.left);for(int i=1;i<=30;i++)tools.ContinueGesture(c+Vector3.left+Vector3.right*(i/15f),.016f);tools.EndStroke();
+        Check(s.MeasureVolume()>0 && tools.Inventory.IsEmpty(color),"Graphite pencil sketches while the selected paint tube is empty");
+        Color graphite=s.SamplePigment(c);
+        Check(Mathf.Abs(graphite.r-graphite.b)<.15f,"Pencil leaves graphite rather than the selected tube color");
+        Check(tools.Undo() && s.MeasureVolume()<.000001 && tools.Inventory.IsEmpty(color),"Pencil undo does not refund tube paint it never consumed");
+        tools.Inventory.Refill(color);
+        var shapes=new System.Collections.Generic.HashSet<int>();
+        foreach(var knife in knives)
+        {
+            tools.ClearCanvas();s.Deposit(c,Color.red,7,Vector2.zero);double volume=s.MeasureVolume();Vector3 mass=s.MeasurePigmentMass();
+            tools.SelectTool(knife);tools.BeginGesture(c+Vector3.up*.6f);
+            for(int i=1;i<=50;i++)tools.ContinueGesture(c+Vector3.up*.6f+Vector3.down*(i*.035f),.016f);
+            double beforeLift=s.MeasureVolume();tools.EndStroke();
+            Check(Math.Abs(s.MeasureVolume()-volume)<volume*.003 && (s.MeasurePigmentMass()-mass).magnitude<mass.magnitude*.006f,
+                "Palette blade conserves volume and pigment: "+knife.displayName);
+            Check(Math.Abs(s.MeasureVolume()-beforeLift)<.000001,"Palette blade adds nothing on lift: "+knife.displayName);
+            shapes.Add(Mathf.RoundToInt(s.CoveredArea()*10000));
+        }
+        Check(shapes.Count>=4,"Distinct palette blade geometries produce distinct spread footprints");
+        tools.ClearCanvas();tools.SelectTool(config.defaultTool);
+        rack.horizontalNormalizedPosition=0;Canvas.ForceUpdateCanvases();Preview(game,"Reference-BrushRack",1,720,1280);
+        rack.horizontalNormalizedPosition=1;Canvas.ForceUpdateCanvases();Preview(game,"Reference-KnifeRack",1,720,1280);
+        Preview(game,"Reference-KnifeRack-Tall",1,720,1560);rack.horizontalNormalizedPosition=0;
     }
     private static void ValidateKnife(GalleryGameController game)
     {
@@ -317,7 +386,7 @@ public static class GalleryGameChecks
         for(int p=0;p<2;p++)
         {
             tools.ClearCanvas();s.Deposit(start,Color.red,7,Vector2.zero);
-            tools.SelectTool(game.rules.painting.tools[2]);tools.SetControls(1,p==0?.15f:.95f);
+            tools.SelectTool(FindTool<KnifeToolDefinition>(game));tools.SetControls(1,p==0?.15f:.95f);
             tools.BeginGesture(start);tools.ContinueGesture(start+Vector3.down*3.5f,.016f);tools.EndStroke();
             midFilm[p]=s.SampleThickness(start+Vector3.down*.5f);farFilm[p]=s.SampleThickness(start+Vector3.down*2.6f);
             filmArea[p]=s.CoveredArea();
@@ -340,14 +409,14 @@ public static class GalleryGameChecks
             "Turning, reversing and lifting at the edge preserve both colors and total volume");
 
         tools.ClearCanvas();s.Deposit(c,Color.red,7,Vector2.zero);original=s.MeasureVolume();
-        tools.SelectColor(game.rules.painting.colors[4]);tools.SelectTool(game.rules.painting.tools[2]);tools.BeginGesture(c);
+        tools.SelectColor(game.rules.painting.colors[4]);tools.SelectTool(FindTool<KnifeToolDefinition>(game));tools.BeginGesture(c);
         tools.ContinueGesture(c+Vector3.down*.45f,.016f);
         var cursor=tools.cursor;
         Check(cursor!=null && cursor.tip!=null && cursor.tip.sprite!=null && cursor.tip.color.a>0 && cursor.tip.color.r>cursor.tip.color.b*1.5f,
             "Knife cursor shows the actual red paint carried from the canvas");
         Vector3 contact=c+Vector3.down*.45f;
         Check(((Vector2)(cursor.transform.position-contact)).magnitude<s.CellSize*.1f &&
-            Mathf.Abs(cursor.body.sprite.bounds.size.x*cursor.transform.lossyScale.x-game.rules.painting.tools[2].WorldSize(s))<s.CellSize,
+            Mathf.Abs(cursor.body.sprite.bounds.size.x*cursor.transform.lossyScale.x-FindTool<KnifeToolDefinition>(game).WorldSize(s))<s.CellSize,
             "Visible blade follows the contact immediately and matches its physical width");
         s.Flush();Preview(game,"Knife-Contact",1,720,1280,true);
         tools.ContinueGesture(c+Vector3.down,.016f);tools.EndStroke();
@@ -401,9 +470,9 @@ public static class GalleryGameChecks
         var tools=game.tools;var s=tools.surface;Vector3 c=s.transform.position;
         tools.ClearCanvas();tools.SetControls(1,.75f);
         tools.Inventory.Refill(game.rules.painting.colors[5]);
-        Stroke(game,5,new[]{new Vector2(-2.7f,1.8f),new Vector2(2.7f,1.8f)},4);
-        Stroke(game,5,new[]{new Vector2(-2.7f,-.4f),new Vector2(2.1f,-.4f)},0);
-        tools.SelectTool(game.rules.painting.tools[2]);
+        Stroke(game,5,new[]{new Vector2(-2.7f,1.8f),new Vector2(2.7f,1.8f)},"pour");
+        Stroke(game,5,new[]{new Vector2(-2.7f,-.4f),new Vector2(2.1f,-.4f)});
+        tools.SelectTool(FindTool<KnifeToolDefinition>(game));
         Vector3 from=c+new Vector3(0,2.1f,0);tools.BeginGesture(from);
         for(int i=1;i<=65;i++)tools.ContinueGesture(from+Vector3.down*(i*.035f),.016f);
         if(tools.cursor!=null)tools.cursor.HideNow();s.Flush();
@@ -422,17 +491,6 @@ public static class GalleryGameChecks
         Check(changed==0,"Lifting the spatula changes zero rendered canvas pixels, including long brown tube and brush stripes ("+changed+")");
         Check(Math.Abs(s.MeasureVolume()-volume)<.000001 && (s.MeasurePigmentMass()-pigment).magnitude<.000001f,
             "Lifting changes neither paint volume nor pigment mass");
-        tools.SelectTool(game.rules.painting.tools[3]);
-        foreach(Vector3 p in new[]{c+new Vector3(-1,0,0),c+new Vector3(1,-1,0),c+new Vector3(-1.5f,1.5f,0)})
-        {
-            tools.BeginGesture(p);
-            Check(((Vector2)(tools.cursor.transform.position-p)).magnitude<s.CellSize*.01f,
-                "A fresh press appears at the current mouse point, without following the previous stamp");
-            Check(Vector2.Distance(tools.cursor.body.sprite.pivot,tools.cursor.body.sprite.rect.size*.5f)<.1f &&
-                Mathf.Abs(tools.cursor.body.sprite.bounds.size.x*tools.cursor.transform.lossyScale.x-game.rules.painting.tools[3].WorldSize(s)*2)<s.CellSize,
-                "Press sprite is centered on its contact and matches the physical diameter");
-            tools.EndStroke();Check(!tools.cursor.body.enabled,"Released press does not linger at the old mouse position");
-        }
         tools.ClearCanvas();
     }
     private static void DrawLandscape(GalleryGameController game)
@@ -442,14 +500,14 @@ public static class GalleryGameChecks
         // Hills are made with the same real tools and finite tubes that the player uses.
         for(int row=0;row<4;row++)Stroke(game,2,new[]{new Vector2(-3,.4f-row*.4f),new Vector2(-1.8f,1.1f-row*.4f),new Vector2(-.3f,.25f-row*.4f),new Vector2(1.5f,.8f-row*.4f),new Vector2(3,.1f-row*.4f)});
         for(int row=0;row<4;row++)Stroke(game,row%2==0?1:2,new[]{new Vector2(-3,-1.3f-row*.44f),new Vector2(3,-1.3f-row*.44f)});
-        Stroke(game,5,new[]{new Vector2(1.1f,-2.8f),new Vector2(.1f,-1.9f),new Vector2(-.7f,-1),new Vector2(.2f,-.3f)},1);
-        Stroke(game,1,new[]{new Vector2(2.05f,1.9f),new Vector2(2.05f,1.9f)},4);
-        foreach(float x in new[]{-2.5f,-1.7f,1.4f,2.3f})Stroke(game,0,new[]{new Vector2(x,-2.4f),new Vector2(x+.09f,-2.1f)},1);
+        Stroke(game,5,new[]{new Vector2(1.1f,-2.8f),new Vector2(.1f,-1.9f),new Vector2(-.7f,-1),new Vector2(.2f,-.3f)},"brush-thin");
+        Stroke(game,1,new[]{new Vector2(2.05f,1.9f),new Vector2(2.05f,1.9f)},"pour");
+        foreach(float x in new[]{-2.5f,-1.7f,1.4f,2.3f})Stroke(game,0,new[]{new Vector2(x,-2.4f),new Vector2(x+.09f,-2.1f)},"brush-thin");
     }
-    private static void Stroke(GalleryGameController game,int color,Vector2[] points,int tool=0)
+    private static void Stroke(GalleryGameController game,int color,Vector2[] points,string toolId="brush-wide")
     {
         var c=game.tools;Vector3 center=c.surface.transform.position;
-        c.SelectColor(game.rules.painting.colors[color]);c.SelectTool(game.rules.painting.tools[tool]);
+        c.SelectColor(game.rules.painting.colors[color]);c.SelectTool(game.rules.painting.tools.Find(t=>t.id==toolId));
         Vector3 from=center+(Vector3)points[0];c.BeginGesture(from);
         for(int n=1;n<points.Length;n++)
         {

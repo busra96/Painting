@@ -85,7 +85,7 @@ namespace PaintingGame.Atelier
                 tools.Add(definition, next);
             }
             tool = next;
-            if (cursor != null) cursor.SetTool(definition, surface);
+            if (cursor != null) {cursor.SetTool(definition, surface);cursor.SetPaint(context.Pigment);}
             ToolChanged?.Invoke(definition);
         }
 

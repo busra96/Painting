@@ -167,7 +167,7 @@ namespace PaintingGame.Atelier
         }
         private void OnTube(PaintColorDefinition _) => RefreshPaint();
         private void OnEmptyTube(PaintColorDefinition color)
-        { if (Ready) status.text = color.displayName + " tüpü bitti. Bilgisayar > Mağaza'dan yenileyebilirsin. Baskı ve spatula mevcut boyayı taşır."; }
+        { if (Ready) status.text = color.displayName + " tüpü bitti. Bilgisayar > Mağaza'dan yenileyebilirsin. Palet bıçakları mevcut boyayı taşır; kalemle eskiz yapabilirsin."; }
         private void OnTool(PaintToolDefinition _) => RefreshPaint();
         private void OnColor(PaintColorDefinition _) => RefreshPaint();
         private void RefreshPaint()
